@@ -66,7 +66,7 @@ function handleList(params) {
 
   const year = params.year ? Number(params.year) : null;
   const month = params.month ? Number(params.month) : null;
-  if (!year || !month || month < 1 || month > 12) return buildError('invalid_period');
+  const shouldFilter = Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12;
 
   const sheet = getSheet();
   const values = sheet.getDataRange().getValues();
@@ -83,8 +83,9 @@ function handleList(params) {
   rows.forEach((row) => {
     const rawDate = row[idx.date];
     const d = toDate(rawDate);
-    if (!d) return;
-    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
+    if (d && shouldFilter) {
+      if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
+    }
 
     const amount = Number(row[idx.amount]) || 0;
     total += amount;
@@ -93,7 +94,7 @@ function handleList(params) {
 
     items.push({
       id: row[idx.id],
-      date: formatDate(d),
+      date: d ? formatDate(d) : (rawDate || '').toString(),
       category,
       amount,
       payment_method: row[idx.payment_method] || '',

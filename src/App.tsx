@@ -34,9 +34,6 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
 
-  const [year, setYear] = useState(() => new Date().getFullYear().toString())
-  const [month, setMonth] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'))
-
   const [items, setItems] = useState<Item[]>([])
   const [summary, setSummary] = useState<Summary>({ total: 0, byCategory: {} })
   const [loading, setLoading] = useState(false)
@@ -55,7 +52,7 @@ function App() {
 
   useEffect(() => {
     if (loggedIn) fetchList()
-  }, [loggedIn, year, month])
+  }, [loggedIn])
 
   if (!apiBase) {
     return <div className="container">VITE_API_BASE が設定されていません。</div>
@@ -115,7 +112,7 @@ function App() {
     setError('')
     try {
       const result = await callApi<ListResponse>(
-        { mode: 'list', year, month, token },
+        { mode: 'list', token },
         'GET',
       )
       if (result.status === 'ok' && result.data) {
@@ -325,20 +322,6 @@ function App() {
             <div>
               <h2>期間と集計</h2>
               <div className="period">
-                <select value={year} onChange={(e) => setYear(e.target.value)}>
-                  {rangeYears().map((y) => (
-                    <option key={y} value={y}>
-                      {y}年
-                    </option>
-                  ))}
-                </select>
-                <select value={month} onChange={(e) => setMonth(e.target.value)}>
-                  {rangeMonths().map((m) => (
-                    <option key={m} value={m}>
-                      {m}月
-                    </option>
-                  ))}
-                </select>
                 <button className="secondary" onClick={fetchList} disabled={loading}>
                   再読み込み
                 </button>
@@ -346,7 +329,7 @@ function App() {
 
               <div className="summary">
                 <p>
-                  {year}年{month}月の合計: <strong>{summary.total.toLocaleString()}円</strong>
+                  合計: <strong>{summary.total.toLocaleString()}円</strong>
                 </p>
                 <table>
                   <thead>
@@ -440,15 +423,6 @@ function formatDateInput(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
-}
-
-function rangeYears() {
-  const current = new Date().getFullYear()
-  return [current - 1, current, current + 1].map(String)
-}
-
-function rangeMonths() {
-  return Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'))
 }
 
 export default App
