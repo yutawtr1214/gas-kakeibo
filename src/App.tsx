@@ -79,7 +79,7 @@ function App() {
       body = usp.toString()
     }
 
-    const res = await fetch(fetchUrl, { method, headers, body })
+    const res = await fetch(fetchUrl, { method, headers, body, redirect: 'follow' })
     return (await res.json()) as ApiResult<T>
   }
 

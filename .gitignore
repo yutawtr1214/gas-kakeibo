@@ -29,3 +29,6 @@ dist-ssr
 
 # gas specific
 .clasp.json
+
+# for AI Agents
+.serena/*

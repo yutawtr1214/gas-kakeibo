@@ -75,7 +75,7 @@ function handleList(params) {
   const header = values[0];
   const rows = values.slice(1);
 
-  const idx = indexMap(header);
+  const idx = normalizeIndex(header);
   const items = [];
   const byCategory = {};
   let total = 0;
@@ -203,12 +203,29 @@ function getSheet() {
   return sheet;
 }
 
-function indexMap(header) {
+function normalizeIndex(header) {
+  const expected = [
+    'id',
+    'date',
+    'category',
+    'amount',
+    'payment_method',
+    'note',
+    'created_at',
+    'updated_at',
+  ];
+
   const map = {};
   header.forEach((name, i) => {
-    map[name] = i;
+    const key = (name || '').toString().trim().toLowerCase();
+    if (key) map[key] = i;
   });
-  return map;
+
+  const idx = {};
+  expected.forEach((key, defaultPos) => {
+    idx[key] = map[key] !== undefined ? map[key] : defaultPos; // フォールバックで列順を利用
+  });
+  return idx;
 }
 
 function toDate(value) {
@@ -218,10 +235,15 @@ function toDate(value) {
 }
 
 function parseDate(text) {
-  const parts = text.split('-');
-  if (parts.length !== 3) return new Date(text);
-  const [y, m, d] = parts.map(Number);
-  return new Date(y, m - 1, d);
+  if (typeof text !== 'string') return null;
+  // YYYY-MM-DD または YYYY/MM/DD 形式を抽出
+  const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (match) {
+    const [_, y, m, d] = match.map(Number);
+    return new Date(y, m - 1, d);
+  }
+  const d = new Date(text);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function formatDate(date) {
