@@ -1,4 +1,5 @@
 const SHEET_NAME = 'items';
+const RECURRENT_SHEET_NAME = 'recurrents';
 const TIMEZONE = 'Asia/Tokyo';
 const DATE_FORMAT = 'yyyy-MM-dd';
 
@@ -16,6 +17,7 @@ const ALLOWED_TYPES = [
 function doGet(e) {
   const params = e?.parameter || {};
   if (params.mode === 'month_get') return handleList(params);
+  if (params.mode === 'recurrent_list') return handleRecurrentList(params);
   return buildError('invalid_mode');
 }
 
@@ -30,6 +32,10 @@ function doPost(e) {
       return withLock(() => handleDelete(params));
     case 'month_get':
       return handleList(params);
+    case 'recurrent_add':
+      return withLock(() => handleRecurrentAdd(params));
+    case 'recurrent_delete':
+      return withLock(() => handleRecurrentDelete(params));
     default:
       return buildError('invalid_mode');
   }
@@ -90,6 +96,8 @@ function handleList(params) {
   if (!member_id) return buildError('missing_member');
   if (!Number.isInteger(year)) return buildError('invalid_year');
   if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
+
+  ensureRecurrents(member_id, year, month);
 
   const data = getMonthData(member_id, year, month);
   return buildOk(data);
@@ -164,6 +172,74 @@ function getMonthData(member_id, year, month) {
   return { items, summary };
 }
 
+function ensureRecurrents(member_id, year, month) {
+  const itemSheet = getSheet();
+  const recurrentSheet = getRecurrentSheet();
+  const itemValues = itemSheet.getDataRange().getValues();
+  const recurrentValues = recurrentSheet.getDataRange().getValues();
+
+  if (recurrentValues.length <= 1) return;
+
+  const itemHeader = itemValues[0] || [];
+  const itemIdx = normalizeIndex(itemHeader);
+  const existingIds = new Set(itemValues.slice(1).map((row) => row[itemIdx.id]));
+
+  const recurHeader = recurrentValues[0];
+  const recurIdx = normalizeRecurrentIndex(recurHeader);
+  const now = nowString();
+
+  const shouldAppend = [];
+
+  recurrentValues.slice(1).forEach((row) => {
+    if (!row[recurIdx.member_id] || row[recurIdx.member_id] !== member_id) return;
+
+    const item_type = row[recurIdx.item_type];
+    const amount = Number(row[recurIdx.amount]);
+    if (!ALLOWED_TYPES.includes(item_type)) return;
+    if (!Number.isInteger(amount) || amount <= 0) return;
+
+    const startY = Number(row[recurIdx.start_y]);
+    const startM = Number(row[recurIdx.start_m]);
+    const endY = row[recurIdx.end_y] === '' || row[recurIdx.end_y] === undefined ? null : Number(row[recurIdx.end_y]);
+    const endM = row[recurIdx.end_m] === '' || row[recurIdx.end_m] === undefined ? null : Number(row[recurIdx.end_m]);
+
+    if (!Number.isInteger(startY) || !Number.isInteger(startM)) return;
+    if (startM < 1 || startM > 12) return;
+    if (endM !== null && (endM < 1 || endM > 12)) return;
+    if (endY !== null && !Number.isInteger(endY)) return;
+
+    if (!isWithinRange(year, month, startY, startM, endY, endM)) return;
+
+    const baseId = row[recurIdx.id] || Utilities.getUuid();
+    const recItemId = `rec_${baseId}_${year}_${month}`;
+    if (existingIds.has(recItemId)) return;
+
+    shouldAppend.push([
+      recItemId,
+      member_id,
+      year,
+      month,
+      '', // date 任意
+      item_type,
+      amount,
+      row[recurIdx.note] || '',
+      now,
+      now,
+    ]);
+  });
+
+  if (shouldAppend.length > 0) {
+    itemSheet.getRange(itemSheet.getLastRow() + 1, 1, shouldAppend.length, shouldAppend[0].length).setValues(shouldAppend);
+  }
+}
+
+function isWithinRange(targetY, targetM, startY, startM, endY, endM) {
+  const target = targetY * 12 + targetM;
+  const start = startY * 12 + startM;
+  const end = endY === null || endM === null ? Number.POSITIVE_INFINITY : endY * 12 + endM;
+  return target >= start && target <= end;
+}
+
 function emptySummary() {
   return {
     income_total: 0,
@@ -200,6 +276,98 @@ function handleDelete(params) {
 
   const monthData = getMonthData(member_id, year, month);
   return buildOk(monthData);
+}
+
+function handleRecurrentList(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const member_id = params.member_id || '';
+  if (!member_id) return buildError('missing_member');
+
+  const sheet = getRecurrentSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return buildOk([]);
+
+  const header = values[0];
+  const idx = normalizeRecurrentIndex(header);
+
+  const list = values.slice(1).filter((row) => row[idx.member_id] === member_id).map((row) => ({
+    id: row[idx.id],
+    member_id: row[idx.member_id],
+    item_type: row[idx.item_type],
+    amount: Number(row[idx.amount]) || 0,
+    note: row[idx.note] || '',
+    start_y: Number(row[idx.start_y]) || null,
+    start_m: Number(row[idx.start_m]) || null,
+    end_y: row[idx.end_y] === '' ? null : Number(row[idx.end_y]),
+    end_m: row[idx.end_m] === '' ? null : Number(row[idx.end_m]),
+  }));
+
+  return buildOk(list);
+}
+
+function handleRecurrentAdd(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const { member_id, item_type, amount, note, start_y, start_m, end_y, end_m } = params;
+  if (!member_id || !item_type || amount === undefined || !start_y || !start_m) {
+    return buildError('missing_required');
+  }
+
+  const amountNum = Number(amount);
+  const startYNum = Number(start_y);
+  const startMNum = Number(start_m);
+  const endYNum = end_y === undefined || end_y === '' ? null : Number(end_y);
+  const endMNum = end_m === undefined || end_m === '' ? null : Number(end_m);
+
+  if (!ALLOWED_TYPES.includes(item_type)) return buildError('invalid_type');
+  if (!Number.isInteger(amountNum) || amountNum <= 0) return buildError('invalid_amount');
+  if (!Number.isInteger(startYNum)) return buildError('invalid_start_year');
+  if (!Number.isInteger(startMNum) || startMNum < 1 || startMNum > 12) return buildError('invalid_start_month');
+  if (endMNum !== null && (!Number.isInteger(endMNum) || endMNum < 1 || endMNum > 12)) return buildError('invalid_end_month');
+  if (endYNum !== null && !Number.isInteger(endYNum)) return buildError('invalid_end_year');
+
+  const sheet = getRecurrentSheet();
+  const id = Utilities.getUuid();
+  const now = nowString();
+
+  const row = [
+    id,
+    member_id,
+    item_type,
+    amountNum,
+    note || '',
+    startYNum,
+    startMNum,
+    endYNum,
+    endMNum,
+    now,
+    now,
+  ];
+
+  sheet.appendRow(row);
+  return handleRecurrentList({ ...params, member_id });
+}
+
+function handleRecurrentDelete(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const { id, member_id } = params;
+  if (!id) return buildError('missing_id');
+
+  const sheet = getRecurrentSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return buildError('not_found');
+
+  const header = values[0];
+  const rows = values.slice(1);
+  const idx = normalizeRecurrentIndex(header);
+
+  const targetIndex = rows.findIndex((row) => row[idx.id] === id);
+  if (targetIndex === -1) return buildError('not_found');
+
+  const rowNumber = targetIndex + 2;
+  sheet.deleteRow(rowNumber);
+
+  const member = member_id || rows[targetIndex][idx.member_id] || '';
+  return handleRecurrentList({ ...params, member_id: member });
 }
 
 function parsePostParameters(e) {
@@ -239,6 +407,12 @@ function getSheet() {
   return sheet;
 }
 
+function getRecurrentSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RECURRENT_SHEET_NAME);
+  if (!sheet) throw new Error('Sheet not found: ' + RECURRENT_SHEET_NAME);
+  return sheet;
+}
+
 function normalizeIndex(header) {
   const expected = [
     'id',
@@ -262,6 +436,36 @@ function normalizeIndex(header) {
   const idx = {};
   expected.forEach((key, defaultPos) => {
     idx[key] = map[key] !== undefined ? map[key] : defaultPos; // フォールバックで列順を利用
+  });
+  return idx;
+}
+
+function normalizeRecurrentIndex(header) {
+  const expected = [
+    'id',
+    'member_id',
+    'item_type',
+    'amount',
+    'note',
+    'start_y',
+    'start_m',
+    'end_y',
+    'end_m',
+    'created_at',
+    'updated_at',
+  ];
+
+  const map = {};
+  header.forEach((name, i) => {
+    const key = (name || '').toString().trim().toLowerCase();
+    if (key) map[key] = i;
+  });
+
+  const idx = {};
+  expected.forEach((key, defaultPos) => {
+    const alt = key === 'start_y' ? 'state_y' : key;
+    const hit = map[key] !== undefined ? map[key] : map[alt];
+    idx[key] = hit !== undefined ? hit : defaultPos;
   });
   return idx;
 }
