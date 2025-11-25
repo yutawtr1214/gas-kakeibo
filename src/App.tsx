@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 type Item = {
   id: string
+  member_id: string
+  year: number
+  month: number
   date: string
-  category: string
+  item_type: ItemType
   amount: number
-  payment_method: string
   note: string
 }
 
 type Summary = {
-  total: number
-  byCategory: Record<string, number>
+  income_total: number
+  shared_from_personal_total: number
+  personal_from_shared_total: number
+  pocket_total: number
+  recommended_transfer: number
 }
 
 type ListResponse = {
@@ -26,33 +31,60 @@ type ApiResult<T = unknown> = {
   message?: string
 }
 
+type ItemType =
+  | 'INCOME'
+  | 'SHARED_SHOULD_PAY_BUT_PERSONAL_PAID'
+  | 'PERSONAL_SHOULD_PAY_BUT_SHARED_PAID'
+  | 'POCKET_MONEY'
+
 const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) || ''
 
+const members = [
+  { id: 'husband', label: '夫' },
+  { id: 'wife', label: '妻' },
+]
+
+const itemTypeOptions: { value: ItemType; label: string }[] = [
+  { value: 'INCOME', label: '収入' },
+  { value: 'SHARED_SHOULD_PAY_BUT_PERSONAL_PAID', label: '共通→個人補填対象' },
+  { value: 'PERSONAL_SHOULD_PAY_BUT_SHARED_PAID', label: '個人→共通負担対象' },
+  { value: 'POCKET_MONEY', label: 'お小遣い' },
+]
+
 function App() {
+  const today = useMemo(() => new Date(), [])
   const [loggedIn, setLoggedIn] = useState(() => sessionStorage.getItem('loggedIn') === 'true')
   const [token, setToken] = useState(() => sessionStorage.getItem('token') || '')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
 
+  const [memberId, setMemberId] = useState(members[0]?.id || '')
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth() + 1)
+
   const [items, setItems] = useState<Item[]>([])
-  const [summary, setSummary] = useState<Summary>({ total: 0, byCategory: {} })
+  const [summary, setSummary] = useState<Summary>({
+    income_total: 0,
+    shared_from_personal_total: 0,
+    personal_from_shared_total: 0,
+    pocket_total: 0,
+    recommended_transfer: 0,
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
-    id: '',
-    date: formatDateInput(new Date()),
-    category: '',
+    date: formatDateInput(today),
+    item_type: '' as ItemType | '',
     amount: '',
-    payment_method: '',
     note: '',
   })
 
-  const isEdit = useMemo(() => Boolean(form.id), [form.id])
-
   useEffect(() => {
-    if (loggedIn) fetchList()
-  }, [loggedIn])
+    if (!loggedIn) return
+    fetchMonthData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedIn, memberId, year, month])
 
   if (!apiBase) {
     return <div className="container">VITE_API_BASE が設定されていません。</div>
@@ -80,8 +112,8 @@ function App() {
     return (await res.json()) as ApiResult<T>
   }
 
-  async function handleLogin(event: React.FormEvent) {
-    event.preventDefault()
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
     setLoginError('')
     if (!loginPassword) {
       setLoginError('パスワードを入力してください')
@@ -106,20 +138,26 @@ function App() {
     }
   }
 
-  async function fetchList() {
+  async function fetchMonthData() {
     if (!token) return
     setLoading(true)
     setError('')
     try {
       const result = await callApi<ListResponse>(
-        { mode: 'list', token },
+        {
+          mode: 'month_get',
+          token,
+          member_id: memberId,
+          year: String(year),
+          month: String(month),
+        },
         'GET',
       )
       if (result.status === 'ok' && result.data) {
         setItems(result.data.items)
         setSummary(result.data.summary)
       } else {
-        setError(result.message || '一覧取得に失敗しました')
+        setError(result.message || 'データ取得に失敗しました')
       }
     } catch (err) {
       setError('通信に失敗しました')
@@ -128,63 +166,40 @@ function App() {
     }
   }
 
-  function onEdit(item: Item) {
-    setForm({
-      id: item.id,
-      date: item.date,
-      category: item.category,
-      amount: String(item.amount),
-      payment_method: item.payment_method,
-      note: item.note,
-    })
-  }
-
-  function resetForm() {
-    setForm({
-      id: '',
-      date: formatDateInput(new Date()),
-      category: '',
-      amount: '',
-      payment_method: '',
-      note: '',
-    })
-  }
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
     if (!token) return setError('未ログインです')
-
-    if (!form.date || !form.category || !form.amount) {
-      setError('日付・カテゴリ・金額は必須です')
+    if (!form.item_type || !form.amount) {
+      setError('種別と金額は必須です')
       return
     }
     const amountNum = Number(form.amount)
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
-      setError('金額は正の数で入力してください')
+    if (!Number.isInteger(amountNum) || amountNum <= 0) {
+      setError('金額は1以上の整数で入力してください')
       return
     }
 
     setLoading(true)
     setError('')
     try {
-      const common = {
-        date: form.date,
-        category: form.category,
-        amount: form.amount,
-        payment_method: form.payment_method,
-        note: form.note,
+      const params = {
+        mode: 'item_add',
         token,
+        member_id: memberId,
+        year: String(year),
+        month: String(month),
+        date: form.date,
+        item_type: form.item_type,
+        amount: form.amount,
+        note: form.note,
       }
-
-      const result = isEdit
-        ? await callApi<null>({ mode: 'update', id: form.id, ...common }, 'POST')
-        : await callApi<{ id: string }>({ mode: 'add', ...common }, 'POST')
-
-      if (result.status === 'ok') {
+      const result = await callApi<ListResponse>(params, 'POST')
+      if (result.status === 'ok' && result.data) {
         resetForm()
-        await fetchList()
+        setItems(result.data.items)
+        setSummary(result.data.summary)
       } else {
-        setError(result.message || '保存に失敗しました')
+        setError(result.message || '追加に失敗しました')
       }
     } catch (err) {
       setError('通信に失敗しました')
@@ -199,9 +214,10 @@ function App() {
     setLoading(true)
     setError('')
     try {
-      const result = await callApi<null>({ mode: 'delete', id, token }, 'POST')
-      if (result.status === 'ok') {
-        await fetchList()
+      const result = await callApi<ListResponse>({ mode: 'item_delete', id, token }, 'POST')
+      if (result.status === 'ok' && result.data) {
+        setItems(result.data.items)
+        setSummary(result.data.summary)
       } else {
         setError(result.message || '削除に失敗しました')
       }
@@ -210,6 +226,15 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function resetForm() {
+    setForm({
+      date: formatDateInput(today),
+      item_type: '',
+      amount: '',
+      note: '',
+    })
   }
 
   function handleLogout() {
@@ -221,12 +246,14 @@ function App() {
     resetForm()
   }
 
+  const recommendedLabel = summary.recommended_transfer >= 0 ? '共通口座へ振込' : '共通口座から補填'
+
   return (
     <div className="container">
       <header className="header">
         <div>
-          <h1>家計簿</h1>
-          <p className="subtitle">GAS + Spreadsheet / 簡易パスワード認証</p>
+          <h1>共有口座振込額計算</h1>
+          <p className="subtitle">GitHub Pages + GAS</p>
         </div>
         {loggedIn && (
           <button className="secondary" onClick={handleLogout}>
@@ -256,12 +283,50 @@ function App() {
         </section>
       ) : (
         <>
+          <section className="panel">
+            <h2>メンバー・年月</h2>
+            <div className="period">
+              <label>
+                メンバー
+                <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                年
+                <input
+                  type="number"
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                  min={2000}
+                />
+              </label>
+              <label>
+                月
+                <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="secondary" onClick={fetchMonthData} disabled={loading}>
+                再読み込み
+              </button>
+            </div>
+          </section>
+
           <section className="panel grid two">
             <div>
-              <h2>{isEdit ? '支出を更新' : '支出を追加'}</h2>
+              <h2>イベント登録</h2>
               <form className="form" onSubmit={handleSubmit}>
                 <label>
-                  日付
+                  日付（任意）
                   <input
                     type="date"
                     value={form.date}
@@ -269,127 +334,96 @@ function App() {
                   />
                 </label>
                 <label>
-                  カテゴリ
-                  <input
-                    type="text"
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  />
+                  種別
+                  <select
+                    value={form.item_type}
+                    onChange={(e) => setForm({ ...form, item_type: e.target.value as ItemType })}
+                  >
+                    <option value="">選択してください</option>
+                    {itemTypeOptions.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
-                  金額
+                  金額（円・整数）
                   <input
                     type="number"
-                    min={0}
+                    min={1}
+                    step={1}
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    required
                   />
                 </label>
                 <label>
-                  支払方法
-                  <input
-                    type="text"
-                    value={form.payment_method}
-                    onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
-                  />
-                </label>
-                <label>
-                  メモ
+                  メモ（任意）
                   <input
                     type="text"
                     value={form.note}
                     onChange={(e) => setForm({ ...form, note: e.target.value })}
                   />
                 </label>
+                {error && <p className="error">{error}</p>}
                 <div className="actions">
                   <button type="submit" disabled={loading}>
-                    {loading ? '送信中…' : isEdit ? '更新' : '追加'}
+                    {loading ? '送信中…' : '追加'}
                   </button>
-                  {isEdit && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={resetForm}
-                      disabled={loading}
-                    >
-                      追加モードに戻す
-                    </button>
-                  )}
+                  <button type="button" className="secondary" onClick={resetForm} disabled={loading}>
+                    リセット
+                  </button>
                 </div>
               </form>
             </div>
 
             <div>
-              <h2>期間と集計</h2>
-              <div className="period">
-                <button className="secondary" onClick={fetchList} disabled={loading}>
-                  再読み込み
-                </button>
-              </div>
-
+              <h2>月次集計</h2>
               <div className="summary">
-                <p>
-                  合計: <strong>{summary.total.toLocaleString()}円</strong>
-                </p>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>カテゴリ</th>
-                      <th>合計</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(summary.byCategory).map(([cat, total]) => (
-                      <tr key={cat}>
-                        <td>{cat || '未設定'}</td>
-                        <td className="num">{total.toLocaleString()}円</td>
-                      </tr>
-                    ))}
-                    {Object.keys(summary.byCategory).length === 0 && (
-                      <tr>
-                        <td colSpan={2} className="muted">
-                          データがありません
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                <SummaryRow label="収入合計" value={summary.income_total} />
+                <SummaryRow
+                  label="共通→個人補填対象"
+                  value={summary.shared_from_personal_total}
+                  sign="-"
+                />
+                <SummaryRow
+                  label="個人→共通負担対象"
+                  value={summary.personal_from_shared_total}
+                  sign="+"
+                />
+                <SummaryRow label="お小遣い合計" value={summary.pocket_total} sign="-" />
+                <div className="summary-highlight">
+                  <div className="summary-label">{recommendedLabel}</div>
+                  <div className="summary-value">
+                    {summary.recommended_transfer.toLocaleString()}円
+                  </div>
+                </div>
               </div>
             </div>
           </section>
 
           <section className="panel">
-            <h2>支出一覧</h2>
-            {error && <p className="error">{error}</p>}
+            <h2>イベント一覧</h2>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th>日付</th>
-                    <th>カテゴリ</th>
+                    <th>種別</th>
                     <th>金額</th>
-                    <th>支払方法</th>
                     <th>メモ</th>
-                    <th>操作</th>
+                    <th>削除</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.date}</td>
-                      <td>{item.category}</td>
+                      <td>{item.date || '-'}</td>
+                      <td>{typeLabel(item.item_type)}</td>
                       <td className="num">{item.amount.toLocaleString()}円</td>
-                      <td>{item.payment_method}</td>
                       <td>{item.note}</td>
                       <td className="actions">
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => onEdit(item)}
-                          disabled={loading}
-                        >
-                          編集
-                        </button>
                         <button
                           type="button"
                           className="danger"
@@ -403,7 +437,7 @@ function App() {
                   ))}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="muted">
+                      <td colSpan={5} className="muted">
                         データがありません
                       </td>
                     </tr>
@@ -416,6 +450,31 @@ function App() {
       )}
     </div>
   )
+}
+
+function SummaryRow({
+  label,
+  value,
+  sign,
+}: {
+  label: string
+  value: number
+  sign?: '+' | '-'
+}) {
+  return (
+    <div className="summary-row">
+      <span className="summary-label">
+        {label}
+        {sign ? ` (${sign})` : ''}
+      </span>
+      <span className="summary-value">{value.toLocaleString()}円</span>
+    </div>
+  )
+}
+
+function typeLabel(t: ItemType) {
+  const hit = itemTypeOptions.find((o) => o.value === t)
+  return hit ? hit.label : t
 }
 
 function formatDateInput(d: Date) {

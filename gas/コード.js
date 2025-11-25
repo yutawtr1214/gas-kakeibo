@@ -1,10 +1,21 @@
-const SHEET_NAME = 'kakeibo';
+const SHEET_NAME = 'items';
 const TIMEZONE = 'Asia/Tokyo';
 const DATE_FORMAT = 'yyyy-MM-dd';
 
+const TYPE_INCOME = 'INCOME';
+const TYPE_SHARED_SHOULD_PAY_BUT_PERSONAL_PAID = 'SHARED_SHOULD_PAY_BUT_PERSONAL_PAID';
+const TYPE_PERSONAL_SHOULD_PAY_BUT_SHARED_PAID = 'PERSONAL_SHOULD_PAY_BUT_SHARED_PAID';
+const TYPE_POCKET_MONEY = 'POCKET_MONEY';
+const ALLOWED_TYPES = [
+  TYPE_INCOME,
+  TYPE_SHARED_SHOULD_PAY_BUT_PERSONAL_PAID,
+  TYPE_PERSONAL_SHOULD_PAY_BUT_SHARED_PAID,
+  TYPE_POCKET_MONEY,
+];
+
 function doGet(e) {
   const params = e?.parameter || {};
-  if (params.mode === 'list') return handleList(params);
+  if (params.mode === 'month_get') return handleList(params);
   return buildError('invalid_mode');
 }
 
@@ -13,13 +24,11 @@ function doPost(e) {
   switch (params.mode) {
     case 'login':
       return handleLogin(params);
-    case 'add':
+    case 'item_add':
       return withLock(() => handleAdd(params));
-    case 'update':
-      return withLock(() => handleUpdate(params));
-    case 'delete':
+    case 'item_delete':
       return withLock(() => handleDelete(params));
-    case 'list':
+    case 'month_get':
       return handleList(params);
     default:
       return buildError('invalid_mode');
@@ -35,22 +44,31 @@ function handleLogin(params) {
 function handleAdd(params) {
   if (!verifyToken(params)) return buildError('invalid_token');
 
-  const { date, category, amount, payment_method, note } = params;
-  if (!date || !category || amount === undefined) return buildError('missing_required');
+  const { member_id, year, month, date, item_type, amount, note } = params;
+  if (!member_id || !year || !month || !item_type || amount === undefined) return buildError('missing_required');
 
+  const yearNum = Number(year);
+  const monthNum = Number(month);
   const amountNum = Number(amount);
-  if (!Number.isFinite(amountNum) || amountNum <= 0) return buildError('invalid_amount');
+
+  if (!Number.isInteger(yearNum)) return buildError('invalid_year');
+  if (!Number.isInteger(monthNum) || monthNum < 1 || monthNum > 12) return buildError('invalid_month');
+  if (!Number.isFinite(amountNum) || amountNum <= 0 || !Number.isInteger(amountNum)) return buildError('invalid_amount');
+  if (!ALLOWED_TYPES.includes(item_type)) return buildError('invalid_type');
 
   const sheet = getSheet();
   const id = Utilities.getUuid();
   const now = nowString();
+  const parsedDate = toDate(date);
 
   const row = [
     id,
-    parseDate(date),
-    category,
+    member_id,
+    yearNum,
+    monthNum,
+    parsedDate ? parsedDate : (date || ''),
+    item_type,
     amountNum,
-    payment_method || '',
     note || '',
     now,
     now,
@@ -58,92 +76,102 @@ function handleAdd(params) {
 
   sheet.appendRow(row);
 
-  return buildOk({ id });
+  const monthData = getMonthData(member_id, yearNum, monthNum);
+  return buildOk(monthData);
 }
 
 function handleList(params) {
   if (!verifyToken(params)) return buildError('invalid_token');
 
-  const year = params.year ? Number(params.year) : null;
-  const month = params.month ? Number(params.month) : null;
-  const shouldFilter = Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12;
+  const member_id = params.member_id || '';
+  const year = params.year ? Number(params.year) : NaN;
+  const month = params.month ? Number(params.month) : NaN;
 
+  if (!member_id) return buildError('missing_member');
+  if (!Number.isInteger(year)) return buildError('invalid_year');
+  if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
+
+  const data = getMonthData(member_id, year, month);
+  return buildOk(data);
+}
+
+function getMonthData(member_id, year, month) {
   const sheet = getSheet();
   const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return buildOk({ items: [], summary: { total: 0, byCategory: {} } });
+  if (values.length <= 1) return { items: [], summary: emptySummary() };
 
   const header = values[0];
   const rows = values.slice(1);
 
   const idx = normalizeIndex(header);
   const items = [];
-  const byCategory = {};
-  let total = 0;
+  let incomeTotal = 0;
+  let sharedFromPersonalTotal = 0;
+  let personalFromSharedTotal = 0;
+  let pocketTotal = 0;
 
   rows.forEach((row) => {
-    const rawDate = row[idx.date];
-    const d = toDate(rawDate);
-    if (d && shouldFilter) {
-      if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
-    }
+    if (!row[idx.member_id] || row[idx.member_id] !== member_id) return;
+    const rowYear = Number(row[idx.year]);
+    const rowMonth = Number(row[idx.month]);
+    if (rowYear !== year || rowMonth !== month) return;
 
     const amount = Number(row[idx.amount]) || 0;
-    total += amount;
-    const category = row[idx.category] || '';
-    byCategory[category] = (byCategory[category] || 0) + amount;
+    const item_type = row[idx.item_type] || '';
+    const rawDate = row[idx.date];
+    const d = toDate(rawDate);
+
+    switch (item_type) {
+      case TYPE_INCOME:
+        incomeTotal += amount;
+        break;
+      case TYPE_SHARED_SHOULD_PAY_BUT_PERSONAL_PAID:
+        sharedFromPersonalTotal += amount;
+        break;
+      case TYPE_PERSONAL_SHOULD_PAY_BUT_SHARED_PAID:
+        personalFromSharedTotal += amount;
+        break;
+      case TYPE_POCKET_MONEY:
+        pocketTotal += amount;
+        break;
+      default:
+        break;
+    }
 
     items.push({
       id: row[idx.id],
+      member_id: row[idx.member_id],
+      year: rowYear,
+      month: rowMonth,
       date: d ? formatDate(d) : (rawDate || '').toString(),
-      category,
+      item_type,
       amount,
-      payment_method: row[idx.payment_method] || '',
       note: row[idx.note] || '',
     });
   });
 
-  return buildOk({ items, summary: { total, byCategory } });
+  const recommendedTransfer =
+    incomeTotal - pocketTotal + personalFromSharedTotal - sharedFromPersonalTotal;
+
+  const summary = {
+    income_total: incomeTotal,
+    shared_from_personal_total: sharedFromPersonalTotal,
+    personal_from_shared_total: personalFromSharedTotal,
+    pocket_total: pocketTotal,
+    recommended_transfer: recommendedTransfer,
+  };
+
+  return { items, summary };
 }
 
-function handleUpdate(params) {
-  if (!verifyToken(params)) return buildError('invalid_token');
-
-  const { id, date, category, amount, payment_method, note } = params;
-  if (!id) return buildError('missing_id');
-
-  const amountNum = Number(amount);
-  if (!date || !category || !Number.isFinite(amountNum) || amountNum <= 0) {
-    return buildError('invalid_payload');
-  }
-
-  const sheet = getSheet();
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return buildError('not_found');
-
-  const header = values[0];
-  const rows = values.slice(1);
-  const idx = indexMap(header);
-
-  const targetIndex = rows.findIndex((row) => row[idx.id] === id);
-  if (targetIndex === -1) return buildError('not_found');
-
-  const rowNumber = targetIndex + 2; // 1-based with header offset
-  const now = nowString();
-
-  const updatedRow = [
-    id,
-    parseDate(date),
-    category,
-    amountNum,
-    payment_method || '',
-    note || '',
-    rows[targetIndex][idx.created_at] || '',
-    now,
-  ];
-
-  sheet.getRange(rowNumber, 1, 1, updatedRow.length).setValues([updatedRow]);
-
-  return buildOk();
+function emptySummary() {
+  return {
+    income_total: 0,
+    shared_from_personal_total: 0,
+    personal_from_shared_total: 0,
+    pocket_total: 0,
+    recommended_transfer: 0,
+  };
 }
 
 function handleDelete(params) {
@@ -157,14 +185,21 @@ function handleDelete(params) {
 
   const header = values[0];
   const rows = values.slice(1);
-  const idx = indexMap(header);
+  const idx = normalizeIndex(header);
 
   const targetIndex = rows.findIndex((row) => row[idx.id] === id);
   if (targetIndex === -1) return buildError('not_found');
 
+  const targetRow = rows[targetIndex];
+  const member_id = targetRow[idx.member_id];
+  const year = Number(targetRow[idx.year]);
+  const month = Number(targetRow[idx.month]);
+
   const rowNumber = targetIndex + 2; // header offset
   sheet.deleteRow(rowNumber);
-  return buildOk();
+
+  const monthData = getMonthData(member_id, year, month);
+  return buildOk(monthData);
 }
 
 function parsePostParameters(e) {
@@ -207,10 +242,12 @@ function getSheet() {
 function normalizeIndex(header) {
   const expected = [
     'id',
+    'member_id',
+    'year',
+    'month',
     'date',
-    'category',
+    'item_type',
     'amount',
-    'payment_method',
     'note',
     'created_at',
     'updated_at',
