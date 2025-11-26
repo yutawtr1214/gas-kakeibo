@@ -39,12 +39,19 @@ type TransfersResult = {
   total: number
 }
 
+type BalanceHistoryItem = {
+  year: number
+  month: number
+  transfers: number
+  spending: number
+  balance: number
+}
+
 type OverviewResponse = ListResponse & {
   transfers: TransfersResult
   transfer_items: Transfer[]
   shared_spending: number
   shared_balance: number
-  delta_vs_recommend: number
 }
 
 type Recurrent = {
@@ -112,7 +119,7 @@ function App() {
   const [transfersSummary, setTransfersSummary] = useState<TransfersResult>({ by_member: {}, total: 0 })
   const [sharedSpending, setSharedSpending] = useState(0)
   const [sharedBalance, setSharedBalance] = useState(0)
-  const [deltaVsRecommend, setDeltaVsRecommend] = useState(0)
+  const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
@@ -132,14 +139,16 @@ function App() {
     end_y: '',
     end_m: '',
   })
-  const [transferForm, setTransferForm] = useState({
-    amount: '',
-    note: '',
-  })
   const [spendingForm, setSpendingForm] = useState({
     amount: '',
     note: '',
   })
+
+  useEffect(() => {
+    if (!loggedIn) return
+    fetchBalanceHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedIn])
 
   useEffect(() => {
     if (!loggedIn) return
@@ -227,7 +236,6 @@ function App() {
         setTransfersSummary(result.data.transfers || { by_member: {}, total: 0 })
         setSharedSpending(result.data.shared_spending || 0)
         setSharedBalance(result.data.shared_balance || 0)
-        setDeltaVsRecommend(result.data.delta_vs_recommend || 0)
       } else {
         setError(result.message || 'データ取得に失敗しました')
       }
@@ -256,44 +264,6 @@ function App() {
       }
     } catch {
       setError('通信に失敗しました')
-    }
-  }
-
-  async function handleTransferSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!token) return setError('未ログインです')
-    if (!transferForm.amount) {
-      setError('振込額は必須です')
-      return
-    }
-    const amountNum = Number(transferForm.amount)
-    if (!Number.isInteger(amountNum) || amountNum <= 0) {
-      setError('振込額は1以上の整数で入力してください')
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const result = await callApi<Transfer[]>({
-        mode: 'transfer_add',
-        token,
-        member_id: memberId,
-        year: String(year),
-        month: String(month),
-        amount: String(amountNum),
-        note: transferForm.note,
-      })
-      if (result.status === 'ok' && result.data) {
-        setTransfers(result.data)
-        setTransferForm({ amount: '', note: '' })
-        await fetchMonthData()
-      } else {
-        setError(result.message || '振込登録に失敗しました')
-      }
-    } catch {
-      setError('通信に失敗しました')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -351,6 +321,7 @@ function App() {
         setSharedSpending(result.data.amount || 0)
         setSpendingForm({ amount: '', note: '' })
         await fetchMonthData()
+        await fetchBalanceHistory()
       } else {
         setError(result.message || '支出登録に失敗しました')
       }
@@ -358,6 +329,21 @@ function App() {
       setError('通信に失敗しました')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchBalanceHistory() {
+    if (!token) return
+    try {
+      const result = await callApi<BalanceHistoryItem[]>({
+        mode: 'balance_history',
+        token,
+      }, 'GET')
+      if (result.status === 'ok' && result.data) {
+        setBalanceHistory(result.data)
+      }
+    } catch {
+      // 歴史取得は致命的でないため、エラー表示はしない
     }
   }
 
@@ -522,9 +508,7 @@ function App() {
     setTransfersSummary({ by_member: {}, total: 0 })
     setSharedSpending(0)
     setSharedBalance(0)
-    setDeltaVsRecommend(0)
     resetForm()
-    setTransferForm({ amount: '', note: '' })
     setSpendingForm({ amount: '', note: '' })
   }
 
@@ -1027,60 +1011,17 @@ function App() {
                       <SummaryRow label="実績合計（夫婦合計）" value={transfersSummary.total || 0} />
                       <SummaryRow label="共通口座 月次支出" value={sharedSpending} sign="-" />
                       <SummaryRow label="口座収支（入金-支出）" value={sharedBalance} />
-                      <div className="summary-highlight">
-                        <div className="summary-label">推奨との差分</div>
-                        <div className="summary-value">
-                          {deltaVsRecommend.toLocaleString()}円
-                        </div>
-                      </div>
                     </div>
                   </div>
 
                   <div className="card surface">
                     <div className="section-title">
-                      <h2>実績振込を登録</h2>
-                      <p>メンバー選択の年月で共通口座への振込を記録します。</p>
+                      <h2>振込登録について</h2>
+                      <p>振込はダッシュボードの「振込を完了」ボタンから自動登録してください。</p>
                     </div>
-                    <form className="form" onSubmit={handleTransferSubmit}>
-                      <label>
-                        金額（円・整数）
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={transferForm.amount}
-                          onChange={(e) =>
-                            setTransferForm({ ...transferForm, amount: e.target.value })
-                          }
-                          inputMode="numeric"
-                          required
-                        />
-                      </label>
-                      <label>
-                        メモ（任意）
-                        <input
-                          type="text"
-                          value={transferForm.note}
-                          onChange={(e) =>
-                            setTransferForm({ ...transferForm, note: e.target.value })
-                          }
-                          placeholder="振込元口座など"
-                        />
-                      </label>
-                      <div className="actions">
-                        <button type="submit" className="primary" disabled={loading}>
-                          {loading ? '送信中…' : '振込を登録'}
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => setTransferForm({ amount: '', note: '' })}
-                          disabled={loading}
-                        >
-                          リセット
-                        </button>
-                      </div>
-                    </form>
+                    <div className="muted">
+                      ボタンで登録後、必要に応じて下の一覧から削除できます。
+                    </div>
                   </div>
                 </section>
 
@@ -1181,6 +1122,14 @@ function App() {
                     </div>
                   </div>
                 </section>
+
+                <section className="card surface">
+                  <div className="section-title">
+                    <h2>共通口座 収支の推移</h2>
+                    <p>入金合計と支出との差分を折れ線で確認できます。</p>
+                  </div>
+                  <BalanceChart data={balanceHistory} />
+                </section>
               </>
             )}
 
@@ -1271,6 +1220,54 @@ function formatDateInput(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function BalanceChart({ data }: { data: BalanceHistoryItem[] }) {
+  if (!data || data.length === 0) {
+    return <div className="muted">まだ収支データがありません</div>
+  }
+
+  const points = data.map((d) => ({
+    label: `${d.year}/${String(d.month).padStart(2, '0')}`,
+    amount: d.balance,
+  }))
+
+  const maxAmount = Math.max(...points.map((p) => p.amount), 1)
+  const padding = 10
+  const width = 600
+  const height = 200
+  const step = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0
+
+  const svgPoints = points
+    .map((p, i) => {
+      const x = padding + i * step
+      const y = height - padding - (p.amount / maxAmount) * (height - padding * 2)
+      return `${x},${y}`
+    })
+    .join(' ')
+
+  return (
+    <div className="chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="月次支出の推移">
+        <polyline fill="none" stroke="#2563eb" strokeWidth="3" points={svgPoints} />
+        {points.map((p, i) => {
+          const x = padding + i * step
+          const y = height - padding - (p.amount / maxAmount) * (height - padding * 2)
+          return (
+            <g key={p.label}>
+              <circle cx={x} cy={y} r="4" fill="#2563eb" />
+              <text x={x} y={height - 2} textAnchor="middle" fontSize="10" fill="#64748b">
+                {p.label}
+              </text>
+              <text x={x} y={y - 8} textAnchor="middle" fontSize="10" fill="#0f172a">
+                {p.amount.toLocaleString()}円
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
 }
 
 export default App

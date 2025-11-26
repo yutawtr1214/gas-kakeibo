@@ -23,6 +23,8 @@ function doGet(e) {
   if (params.mode === 'recurrent_list') return handleRecurrentList(params);
   if (params.mode === 'transfer_list') return handleTransferList(params);
   if (params.mode === 'spending_get') return handleSpendingGet(params);
+  if (params.mode === 'spending_history') return handleSpendingHistory(params); // 互換のため残すが balance_history を推奨
+  if (params.mode === 'balance_history') return handleBalanceHistory(params);
   return buildError('invalid_mode');
 }
 
@@ -49,6 +51,10 @@ function doPost(e) {
       return withLock(() => handleTransferDelete(params));
     case 'spending_set':
       return withLock(() => handleSpendingSet(params));
+    case 'spending_history':
+      return handleSpendingHistory(params);
+    case 'balance_history':
+      return handleBalanceHistory(params);
     default:
       return buildError('invalid_mode');
   }
@@ -119,14 +125,12 @@ function handleOverview(params) {
 
   const sharedBalance = transfers.total - sharedSpending.amount;
   const memberTransfer = transfers.by_member[member_id] || 0;
-  const deltaVsRecommend = memberTransfer - base.summary.recommended_transfer;
 
   return buildOk({
     ...base,
     transfers,
     shared_spending: sharedSpending.amount,
     shared_balance: sharedBalance,
-    delta_vs_recommend: deltaVsRecommend,
     transfer_items: transferItems,
   });
 }
@@ -459,6 +463,70 @@ function handleSpendingGet(params) {
   if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
   const spending = getSharedSpendingByMonth(year, month);
   return buildOk(spending);
+}
+
+function handleSpendingHistory(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const sheet = getSharedSpendingSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return buildOk([]);
+  const header = values[0];
+  const idx = normalizeSharedSpendingIndex(header);
+  const list = values.slice(1).map((row) => ({
+    id: row[idx.id],
+    year: Number(row[idx.year]) || 0,
+    month: Number(row[idx.month]) || 0,
+    amount: Number(row[idx.amount]) || 0,
+    note: row[idx.note] || '',
+  }));
+  list.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+  return buildOk(list);
+}
+
+function handleBalanceHistory(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const transferSheet = getTransferSheet();
+  const spendingSheet = getSharedSpendingSheet();
+
+  const transferValues = transferSheet.getDataRange().getValues();
+  const spendingValues = spendingSheet.getDataRange().getValues();
+
+  const map = {};
+
+  if (transferValues.length > 1) {
+    const header = transferValues[0];
+    const idx = normalizeTransferIndex(header);
+    transferValues.slice(1).forEach((row) => {
+      const y = Number(row[idx.year]) || 0;
+      const m = Number(row[idx.month]) || 0;
+      const key = `${y}-${m}`;
+      if (!map[key]) map[key] = { year: y, month: m, transfers: 0, spending: 0 };
+      map[key].transfers += Number(row[idx.amount]) || 0;
+    });
+  }
+
+  if (spendingValues.length > 1) {
+    const header = spendingValues[0];
+    const idx = normalizeSharedSpendingIndex(header);
+    spendingValues.slice(1).forEach((row) => {
+      const y = Number(row[idx.year]) || 0;
+      const m = Number(row[idx.month]) || 0;
+      const key = `${y}-${m}`;
+      if (!map[key]) map[key] = { year: y, month: m, transfers: 0, spending: 0 };
+      map[key].spending += Number(row[idx.amount]) || 0;
+    });
+  }
+
+  const list = Object.values(map).map((v) => ({
+    year: v.year,
+    month: v.month,
+    transfers: v.transfers,
+    spending: v.spending,
+    balance: v.transfers - v.spending,
+  }));
+
+  list.sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+  return buildOk(list);
 }
 
 function handleSpendingSet(params) {
