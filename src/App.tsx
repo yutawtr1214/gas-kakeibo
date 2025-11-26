@@ -25,6 +25,28 @@ type ListResponse = {
   summary: Summary
 }
 
+type Transfer = {
+  id: string
+  member_id: string
+  year: number
+  month: number
+  amount: number
+  note: string
+}
+
+type TransfersResult = {
+  by_member: Record<string, number>
+  total: number
+}
+
+type OverviewResponse = ListResponse & {
+  transfers: TransfersResult
+  transfer_items: Transfer[]
+  shared_spending: number
+  shared_balance: number
+  delta_vs_recommend: number
+}
+
 type Recurrent = {
   id: string
   member_id: string
@@ -63,7 +85,8 @@ const itemTypeOptions: { value: ItemType; label: string }[] = [
   { value: 'POCKET_MONEY', label: 'お小遣い' },
 ]
 
-type Tab = { key: 'dashboard' | 'event' | 'recurrent' | 'list'; label: string }
+type TabKey = 'dashboard' | 'event' | 'recurrent' | 'list' | 'shared'
+type Tab = { key: TabKey; label: string }
 
 function App() {
   const today = useMemo(() => new Date(), [])
@@ -85,11 +108,14 @@ function App() {
     recommended_transfer: 0,
   })
   const [recurrents, setRecurrents] = useState<Recurrent[]>([])
+  const [transfers, setTransfers] = useState<Transfer[]>([])
+  const [transfersSummary, setTransfersSummary] = useState<TransfersResult>({ by_member: {}, total: 0 })
+  const [sharedSpending, setSharedSpending] = useState(0)
+  const [sharedBalance, setSharedBalance] = useState(0)
+  const [deltaVsRecommend, setDeltaVsRecommend] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'event' | 'recurrent' | 'list'>(
-    'dashboard',
-  )
+  const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
 
   const [form, setForm] = useState({
     date: formatDateInput(today),
@@ -105,6 +131,14 @@ function App() {
     start_m: month,
     end_y: '',
     end_m: '',
+  })
+  const [transferForm, setTransferForm] = useState({
+    amount: '',
+    note: '',
+  })
+  const [spendingForm, setSpendingForm] = useState({
+    amount: '',
+    note: '',
   })
 
   useEffect(() => {
@@ -176,9 +210,9 @@ function App() {
     setLoading(true)
     setError('')
     try {
-      const result = await callApi<ListResponse>(
+      const result = await callApi<OverviewResponse>(
         {
-          mode: 'month_get',
+          mode: 'overview_get',
           token,
           member_id: memberId,
           year: String(year),
@@ -189,6 +223,11 @@ function App() {
       if (result.status === 'ok' && result.data) {
         setItems(result.data.items)
         setSummary(result.data.summary)
+        setTransfers(result.data.transfer_items || [])
+        setTransfersSummary(result.data.transfers || { by_member: {}, total: 0 })
+        setSharedSpending(result.data.shared_spending || 0)
+        setSharedBalance(result.data.shared_balance || 0)
+        setDeltaVsRecommend(result.data.delta_vs_recommend || 0)
       } else {
         setError(result.message || 'データ取得に失敗しました')
       }
@@ -217,6 +256,108 @@ function App() {
       }
     } catch {
       setError('通信に失敗しました')
+    }
+  }
+
+  async function handleTransferSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!token) return setError('未ログインです')
+    if (!transferForm.amount) {
+      setError('振込額は必須です')
+      return
+    }
+    const amountNum = Number(transferForm.amount)
+    if (!Number.isInteger(amountNum) || amountNum <= 0) {
+      setError('振込額は1以上の整数で入力してください')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const result = await callApi<Transfer[]>({
+        mode: 'transfer_add',
+        token,
+        member_id: memberId,
+        year: String(year),
+        month: String(month),
+        amount: String(amountNum),
+        note: transferForm.note,
+      })
+      if (result.status === 'ok' && result.data) {
+        setTransfers(result.data)
+        setTransferForm({ amount: '', note: '' })
+        await fetchMonthData()
+      } else {
+        setError(result.message || '振込登録に失敗しました')
+      }
+    } catch {
+      setError('通信に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleTransferDelete(id: string) {
+    if (!token) return
+    if (!window.confirm('この振込記録を削除しますか？')) return
+    setLoading(true)
+    setError('')
+    try {
+      const result = await callApi<Transfer[]>({
+        mode: 'transfer_delete',
+        token,
+        id,
+        member_id: memberId,
+        year: String(year),
+        month: String(month),
+      })
+      if (result.status === 'ok' && result.data) {
+        setTransfers(result.data)
+        await fetchMonthData()
+      } else {
+        setError(result.message || '削除に失敗しました')
+      }
+    } catch {
+      setError('通信に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleSpendingSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!token) return setError('未ログインです')
+    if (spendingForm.amount === '') {
+      setError('支出額は必須です')
+      return
+    }
+    const amountNum = Number(spendingForm.amount)
+    if (!Number.isInteger(amountNum) || amountNum < 0) {
+      setError('支出額は0以上の整数で入力してください')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const result = await callApi<{ amount: number; note: string }>({
+        mode: 'spending_set',
+        token,
+        year: String(year),
+        month: String(month),
+        amount: String(amountNum),
+        note: spendingForm.note,
+      })
+      if (result.status === 'ok' && result.data) {
+        setSharedSpending(result.data.amount || 0)
+        setSpendingForm({ amount: '', note: '' })
+        await fetchMonthData()
+      } else {
+        setError(result.message || '支出登録に失敗しました')
+      }
+    } catch {
+      setError('通信に失敗しました')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -377,7 +518,14 @@ function App() {
     setToken('')
     setItems([])
     setRecurrents([])
+    setTransfers([])
+    setTransfersSummary({ by_member: {}, total: 0 })
+    setSharedSpending(0)
+    setSharedBalance(0)
+    setDeltaVsRecommend(0)
     resetForm()
+    setTransferForm({ amount: '', note: '' })
+    setSpendingForm({ amount: '', note: '' })
   }
 
   const recommendedLabel = summary.recommended_transfer >= 0 ? '共通口座へ振込' : '共通口座から補填'
@@ -386,7 +534,40 @@ function App() {
     { key: 'event', label: 'イベント登録' },
     { key: 'recurrent', label: '固定費' },
     { key: 'list', label: 'イベント一覧' },
+    { key: 'shared' as TabKey, label: '共有口座実績' },
   ]
+
+  async function handleQuickTransfer() {
+    if (!token) return setError('未ログインです')
+    const amount = summary.recommended_transfer
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('推奨額が0円以下のため、自動登録できません')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const result = await callApi<Transfer[]>({
+        mode: 'transfer_add',
+        token,
+        member_id: memberId,
+        year: String(year),
+        month: String(month),
+        amount: String(Math.round(amount)),
+        note: `${year}年${month}月 推奨額を自動登録`,
+      })
+      if (result.status === 'ok' && result.data) {
+        setTransfers(result.data)
+        await fetchMonthData()
+      } else {
+        setError(result.message || '推奨額の登録に失敗しました')
+      }
+    } catch {
+      setError('通信に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="page">
@@ -482,6 +663,11 @@ function App() {
                 </button>
               ))}
             </nav>
+            {error && (
+              <div className="card surface" role="alert">
+                <p className="error">{error}</p>
+              </div>
+            )}
 
             {activeTab === 'dashboard' && (
               <section className="card-grid two">
@@ -524,6 +710,21 @@ function App() {
                       onClick={() => setActiveTab('recurrent')}
                     >
                       固定費を登録
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => setActiveTab('shared')}
+                    >
+                      共有タブへ
+                    </button>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={handleQuickTransfer}
+                      disabled={loading || summary.recommended_transfer <= 0}
+                    >
+                      {loading ? '送信中…' : `${year}年${month}月の振込を完了`}
                     </button>
                   </div>
                 </div>
@@ -807,6 +1008,180 @@ function App() {
                   </div>
                 </div>
               </section>
+            )}
+
+            {activeTab === 'shared' && (
+              <>
+                <section className="card-grid two">
+                  <div className="card surface highlight">
+                    <div className="section-title">
+                      <h2>共有口座サマリ</h2>
+                      <p>推奨額と実績、収支を確認できます。</p>
+                    </div>
+                    <div className="summary">
+                      <SummaryRow label="当月推奨振込額" value={summary.recommended_transfer} />
+                      <SummaryRow
+                        label={`${members.find((m) => m.id === memberId)?.label || ''}の実績振込`}
+                        value={transfersSummary.by_member[memberId] || 0}
+                      />
+                      <SummaryRow label="実績合計（夫婦合計）" value={transfersSummary.total || 0} />
+                      <SummaryRow label="共通口座 月次支出" value={sharedSpending} sign="-" />
+                      <SummaryRow label="口座収支（入金-支出）" value={sharedBalance} />
+                      <div className="summary-highlight">
+                        <div className="summary-label">推奨との差分</div>
+                        <div className="summary-value">
+                          {deltaVsRecommend.toLocaleString()}円
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card surface">
+                    <div className="section-title">
+                      <h2>実績振込を登録</h2>
+                      <p>メンバー選択の年月で共通口座への振込を記録します。</p>
+                    </div>
+                    <form className="form" onSubmit={handleTransferSubmit}>
+                      <label>
+                        金額（円・整数）
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={transferForm.amount}
+                          onChange={(e) =>
+                            setTransferForm({ ...transferForm, amount: e.target.value })
+                          }
+                          inputMode="numeric"
+                          required
+                        />
+                      </label>
+                      <label>
+                        メモ（任意）
+                        <input
+                          type="text"
+                          value={transferForm.note}
+                          onChange={(e) =>
+                            setTransferForm({ ...transferForm, note: e.target.value })
+                          }
+                          placeholder="振込元口座など"
+                        />
+                      </label>
+                      <div className="actions">
+                        <button type="submit" className="primary" disabled={loading}>
+                          {loading ? '送信中…' : '振込を登録'}
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => setTransferForm({ amount: '', note: '' })}
+                          disabled={loading}
+                        >
+                          リセット
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </section>
+
+                <section className="card-grid two">
+                  <div className="card surface">
+                    <div className="section-title">
+                      <h2>月次共通口座支出</h2>
+                      <p>その月の共通口座からの総支出額を入力します。</p>
+                    </div>
+                    <form className="form" onSubmit={handleSpendingSubmit}>
+                      <label>
+                        支出額（円・整数・0以上）
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={spendingForm.amount}
+                          onChange={(e) =>
+                            setSpendingForm({ ...spendingForm, amount: e.target.value })
+                          }
+                          inputMode="numeric"
+                          required
+                        />
+                      </label>
+                      <label>
+                        メモ（任意）
+                        <input
+                          type="text"
+                          value={spendingForm.note}
+                          onChange={(e) =>
+                            setSpendingForm({ ...spendingForm, note: e.target.value })
+                          }
+                          placeholder="内訳メモなど"
+                        />
+                      </label>
+                      <div className="actions">
+                        <button type="submit" className="primary" disabled={loading}>
+                          {loading ? '送信中…' : '支出を登録'}
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => setSpendingForm({ amount: '', note: '' })}
+                          disabled={loading}
+                        >
+                          リセット
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="card surface">
+                    <div className="section-title">
+                      <h2>当月の振込一覧</h2>
+                      <p>夫婦それぞれの振込履歴を確認・削除できます。</p>
+                    </div>
+                    <div className="table-wrap responsive fixed-height">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>メンバー</th>
+                            <th>金額</th>
+                            <th>メモ</th>
+                            <th>削除</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transfers.map((t) => (
+                            <tr key={t.id}>
+                              <td data-label="メンバー">
+                                {members.find((m) => m.id === t.member_id)?.label || t.member_id}
+                              </td>
+                              <td data-label="金額" className="num">
+                                {t.amount.toLocaleString()}円
+                              </td>
+                              <td data-label="メモ">{t.note || '-'}</td>
+                              <td className="actions" data-label="削除">
+                                <button
+                                  type="button"
+                                  className="danger ghost-text"
+                                  onClick={() => handleTransferDelete(t.id)}
+                                  disabled={loading}
+                                >
+                                  削除
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {transfers.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="muted">
+                                当月の振込記録はありません
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+              </>
             )}
 
             {activeTab === 'list' && (

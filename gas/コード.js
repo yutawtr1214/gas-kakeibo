@@ -1,5 +1,7 @@
 const SHEET_NAME = 'items';
 const RECURRENT_SHEET_NAME = 'recurrents';
+const TRANSFER_SHEET_NAME = 'transfers';
+const SHARED_SPENDING_SHEET_NAME = 'shared_spending';
 const TIMEZONE = 'Asia/Tokyo';
 const DATE_FORMAT = 'yyyy-MM-dd';
 
@@ -17,7 +19,10 @@ const ALLOWED_TYPES = [
 function doGet(e) {
   const params = e?.parameter || {};
   if (params.mode === 'month_get') return handleList(params);
+  if (params.mode === 'overview_get') return handleOverview(params);
   if (params.mode === 'recurrent_list') return handleRecurrentList(params);
+  if (params.mode === 'transfer_list') return handleTransferList(params);
+  if (params.mode === 'spending_get') return handleSpendingGet(params);
   return buildError('invalid_mode');
 }
 
@@ -32,10 +37,18 @@ function doPost(e) {
       return withLock(() => handleDelete(params));
     case 'month_get':
       return handleList(params);
+    case 'overview_get':
+      return handleOverview(params);
     case 'recurrent_add':
       return withLock(() => handleRecurrentAdd(params));
     case 'recurrent_delete':
       return withLock(() => handleRecurrentDelete(params));
+    case 'transfer_add':
+      return withLock(() => handleTransferAdd(params));
+    case 'transfer_delete':
+      return withLock(() => handleTransferDelete(params));
+    case 'spending_set':
+      return withLock(() => handleSpendingSet(params));
     default:
       return buildError('invalid_mode');
   }
@@ -84,6 +97,38 @@ function handleAdd(params) {
 
   const monthData = getMonthData(member_id, yearNum, monthNum);
   return buildOk(monthData);
+}
+
+function handleOverview(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+
+  const member_id = params.member_id || '';
+  const year = params.year ? Number(params.year) : NaN;
+  const month = params.month ? Number(params.month) : NaN;
+
+  if (!member_id) return buildError('missing_member');
+  if (!Number.isInteger(year)) return buildError('invalid_year');
+  if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
+
+  ensureRecurrents(member_id, year, month);
+
+  const base = getMonthData(member_id, year, month);
+  const transfers = getTransfersByMonth(year, month);
+  const transferItems = getTransferItemsByMonth(year, month);
+  const sharedSpending = getSharedSpendingByMonth(year, month);
+
+  const sharedBalance = transfers.total - sharedSpending.amount;
+  const memberTransfer = transfers.by_member[member_id] || 0;
+  const deltaVsRecommend = memberTransfer - base.summary.recommended_transfer;
+
+  return buildOk({
+    ...base,
+    transfers,
+    shared_spending: sharedSpending.amount,
+    shared_balance: sharedBalance,
+    delta_vs_recommend: deltaVsRecommend,
+    transfer_items: transferItems,
+  });
 }
 
 function handleList(params) {
@@ -305,6 +350,157 @@ function handleRecurrentList(params) {
   return buildOk(list);
 }
 
+function handleTransferList(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const member_id = params.member_id || '';
+  const year = params.year ? Number(params.year) : NaN;
+  const month = params.month ? Number(params.month) : NaN;
+
+  if (!member_id) return buildError('missing_member');
+  if (!Number.isInteger(year)) return buildError('invalid_year');
+  if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
+
+  const transfers = getTransferSheet().getDataRange().getValues();
+  if (transfers.length <= 1) return buildOk([]);
+
+  const header = transfers[0];
+  const idx = normalizeTransferIndex(header);
+  const list = transfers
+    .slice(1)
+    .filter((row) => row[idx.member_id] === member_id && Number(row[idx.year]) === year && Number(row[idx.month]) === month)
+    .map((row) => ({
+      id: row[idx.id],
+      member_id: row[idx.member_id],
+      year: Number(row[idx.year]),
+      month: Number(row[idx.month]),
+      amount: Number(row[idx.amount]) || 0,
+      note: row[idx.note] || '',
+    }));
+
+  return buildOk(list);
+}
+
+function handleTransferAdd(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const { member_id, year, month, amount, note } = params;
+  if (!member_id || year === undefined || month === undefined || amount === undefined) {
+    return buildError('missing_required');
+  }
+
+  const yearNum = Number(year);
+  const monthNum = Number(month);
+  const amountNum = Number(amount);
+
+  if (!Number.isInteger(yearNum)) return buildError('invalid_year');
+  if (!Number.isInteger(monthNum) || monthNum < 1 || monthNum > 12) return buildError('invalid_month');
+  if (!Number.isInteger(amountNum) || amountNum <= 0) return buildError('invalid_amount');
+
+  const sheet = getTransferSheet();
+  const now = nowString();
+  const values = sheet.getDataRange().getValues();
+  const header = values[0] || [];
+  const idx = normalizeTransferIndex(header);
+
+  // 既存レコードを探して上書き
+  if (values.length > 1) {
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      if (
+        row[idx.member_id] === member_id &&
+        Number(row[idx.year]) === yearNum &&
+        Number(row[idx.month]) === monthNum
+      ) {
+        sheet.getRange(i + 1, idx.amount + 1).setValue(amountNum);
+        sheet.getRange(i + 1, idx.note + 1).setValue(note || '');
+        sheet.getRange(i + 1, idx.updated_at + 1).setValue(now);
+        return handleTransferList({ ...params, member_id, year: yearNum, month: monthNum });
+      }
+    }
+  }
+
+  // 見つからなければ新規追加
+  const id = Utilities.getUuid();
+  const newRow = [id, member_id, yearNum, monthNum, amountNum, note || '', now, now];
+  sheet.appendRow(newRow);
+  return handleTransferList({ ...params, member_id, year: yearNum, month: monthNum });
+}
+
+function handleTransferDelete(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const { id, member_id, year, month } = params;
+  if (!id) return buildError('missing_id');
+
+  const sheet = getTransferSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return buildError('not_found');
+
+  const header = values[0];
+  const rows = values.slice(1);
+  const idx = normalizeTransferIndex(header);
+
+  const targetIndex = rows.findIndex((row) => row[idx.id] === id);
+  if (targetIndex === -1) return buildError('not_found');
+
+  const rowNumber = targetIndex + 2;
+  sheet.deleteRow(rowNumber);
+
+  const y = year !== undefined ? Number(year) : Number(rows[targetIndex][idx.year]);
+  const m = month !== undefined ? Number(month) : Number(rows[targetIndex][idx.month]);
+  const member = member_id || rows[targetIndex][idx.member_id] || '';
+
+  return handleTransferList({ ...params, member_id: member, year: y, month: m });
+}
+
+function handleSpendingGet(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const year = params.year ? Number(params.year) : NaN;
+  const month = params.month ? Number(params.month) : NaN;
+  if (!Number.isInteger(year)) return buildError('invalid_year');
+  if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
+  const spending = getSharedSpendingByMonth(year, month);
+  return buildOk(spending);
+}
+
+function handleSpendingSet(params) {
+  if (!verifyToken(params)) return buildError('invalid_token');
+  const year = params.year ? Number(params.year) : NaN;
+  const month = params.month ? Number(params.month) : NaN;
+  const amount = params.amount !== undefined ? Number(params.amount) : NaN;
+  const note = params.note || '';
+
+  if (!Number.isInteger(year)) return buildError('invalid_year');
+  if (!Number.isInteger(month) || month < 1 || month > 12) return buildError('invalid_month');
+  if (!Number.isInteger(amount) || amount < 0) return buildError('invalid_amount'); // 0も許容
+
+  const sheet = getSharedSpendingSheet();
+  const values = sheet.getDataRange().getValues();
+  const now = nowString();
+  const header = values[0] || [];
+  const idx = normalizeSharedSpendingIndex(header);
+
+  let updated = false;
+  if (values.length > 1) {
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      if (Number(row[idx.year]) === year && Number(row[idx.month]) === month) {
+        sheet.getRange(i + 1, idx.amount + 1).setValue(amount);
+        sheet.getRange(i + 1, idx.note + 1).setValue(note);
+        sheet.getRange(i + 1, idx.updated_at + 1).setValue(now);
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  if (!updated) {
+    const id = Utilities.getUuid();
+    const row = [id, year, month, amount, note, now, now];
+    sheet.appendRow(row);
+  }
+
+  return handleSpendingGet({ ...params, year, month });
+}
+
 function handleRecurrentAdd(params) {
   if (!verifyToken(params)) return buildError('invalid_token');
   const { member_id, item_type, amount, note, start_y, start_m, end_y, end_m } = params;
@@ -413,6 +609,18 @@ function getRecurrentSheet() {
   return sheet;
 }
 
+function getTransferSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TRANSFER_SHEET_NAME);
+  if (!sheet) throw new Error('Sheet not found: ' + TRANSFER_SHEET_NAME);
+  return sheet;
+}
+
+function getSharedSpendingSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHARED_SPENDING_SHEET_NAME);
+  if (!sheet) throw new Error('Sheet not found: ' + SHARED_SPENDING_SHEET_NAME);
+  return sheet;
+}
+
 function normalizeIndex(header) {
   const expected = [
     'id',
@@ -470,6 +678,34 @@ function normalizeRecurrentIndex(header) {
   return idx;
 }
 
+function normalizeTransferIndex(header) {
+  const expected = ['id', 'member_id', 'year', 'month', 'amount', 'note', 'created_at', 'updated_at'];
+  const map = {};
+  header.forEach((name, i) => {
+    const key = (name || '').toString().trim().toLowerCase();
+    if (key) map[key] = i;
+  });
+  const idx = {};
+  expected.forEach((key, defaultPos) => {
+    idx[key] = map[key] !== undefined ? map[key] : defaultPos;
+  });
+  return idx;
+}
+
+function normalizeSharedSpendingIndex(header) {
+  const expected = ['id', 'year', 'month', 'amount', 'note', 'created_at', 'updated_at'];
+  const map = {};
+  header.forEach((name, i) => {
+    const key = (name || '').toString().trim().toLowerCase();
+    if (key) map[key] = i;
+  });
+  const idx = {};
+  expected.forEach((key, defaultPos) => {
+    idx[key] = map[key] !== undefined ? map[key] : defaultPos;
+  });
+  return idx;
+}
+
 function toDate(value) {
   if (value instanceof Date) return value;
   if (typeof value === 'string' && value) return parseDate(value);
@@ -517,4 +753,60 @@ function buildError(message) {
 function respond(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getTransfersByMonth(year, month) {
+  const sheet = getTransferSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return { by_member: {}, total: 0 };
+
+  const header = values[0];
+  const idx = normalizeTransferIndex(header);
+  const byMember = {};
+  let total = 0;
+
+  values.slice(1).forEach((row) => {
+    if (Number(row[idx.year]) !== year || Number(row[idx.month]) !== month) return;
+    const mId = row[idx.member_id];
+    const amount = Number(row[idx.amount]) || 0;
+    byMember[mId] = (byMember[mId] || 0) + amount;
+    total += amount;
+  });
+
+  return { by_member: byMember, total };
+}
+
+function getTransferItemsByMonth(year, month) {
+  const sheet = getTransferSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+
+  const header = values[0];
+  const idx = normalizeTransferIndex(header);
+
+  return values.slice(1).filter((row) => Number(row[idx.year]) === year && Number(row[idx.month]) === month).map((row) => ({
+    id: row[idx.id],
+    member_id: row[idx.member_id],
+    year: Number(row[idx.year]),
+    month: Number(row[idx.month]),
+    amount: Number(row[idx.amount]) || 0,
+    note: row[idx.note] || '',
+  }));
+}
+
+function getSharedSpendingByMonth(year, month) {
+  const sheet = getSharedSpendingSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return { amount: 0, note: '' };
+
+  const header = values[0];
+  const idx = normalizeSharedSpendingIndex(header);
+
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    if (Number(row[idx.year]) === year && Number(row[idx.month]) === month) {
+      return { amount: Number(row[idx.amount]) || 0, note: row[idx.note] || '' };
+    }
+  }
+  return { amount: 0, note: '' };
 }
