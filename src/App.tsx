@@ -1,21 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { api } from './lib/api/client'
-import type {
-  BalanceHistoryItem,
-  Item,
-  ItemType,
-  Recurrent,
-  Summary,
-  Transfer,
-  TransfersResult,
-} from './lib/api/types'
+import type { BalanceHistoryItem, Item, ItemType, Recurrent, Summary, Transfer, TransfersResult } from './lib/api/types'
+import { BottomNav } from './components/BottomNav'
+import { HomeScreen } from './screens/HomeScreen'
+import { InputScreen } from './screens/InputScreen'
+import { PlanScreen } from './screens/PlanScreen'
+import { FixedScreen } from './screens/FixedScreen'
+import { SharedScreen } from './screens/SharedScreen'
+import { HistoryScreen } from './screens/HistoryScreen'
 
 type Screen = 'home' | 'input' | 'fixed' | 'shared' | 'history' | 'plan'
 
 const members = [
   { id: 'husband', label: '夫' },
   { id: 'wife', label: '妻' },
+]
+
+const tabs: { key: Screen; label: string }[] = [
+  { key: 'home', label: 'ホーム' },
+  { key: 'plan', label: '振込計算' },
+  { key: 'input', label: '入力' },
+  { key: 'fixed', label: '固定費' },
+  { key: 'shared', label: '共有' },
+  { key: 'history', label: '履歴' },
 ]
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
@@ -464,715 +472,124 @@ function App() {
               </div>
             )}
 
-          {screen === 'home' && (
-            <section className="stack">
-              <Card title="共有口座の現在地" subtitle="残高と今月の差分を確認" highlight>
-                <div className="summary-grid">
-                  <SummaryRow label="今月の実績振込（合計）" value={transfersSummary.total || 0} />
-                  <SummaryRow label="今月支出（共通口座）" value={sharedSpending} sign="-" />
-                  <SummaryRow label="現在残高" value={sharedBalance} />
-                </div>
-                <div className="actions" style={{ marginTop: '12px' }}>
-                  <button className="ghost" onClick={() => setScreen('shared')}>
-                    共有の詳細へ
-                  </button>
-                </div>
-              </Card>
-
-                <Card title="収支の推移" subtitle="直近6ヶ月">
-                  <MiniBalanceChart data={balanceHistory.slice(-6)} />
-                </Card>
-
-                <AlertBanner
-                  recommended={summary.recommended_transfer}
-                  transferred={transfersSummary.total}
-                  balance={sharedBalance}
-                  onAction={() => setScreen('shared')}
-                />
-              </section>
+            {screen === 'home' && (
+              <HomeScreen
+                summary={summary}
+                transfersSummary={transfersSummary}
+                sharedSpending={sharedSpending}
+                sharedBalance={sharedBalance}
+                balanceHistory={balanceHistory}
+                onGoShared={() => setScreen('shared')}
+              />
             )}
 
             {screen === 'input' && (
-              <section className="stack">
-                <FilterBar
-                  memberId={memberId}
-                  setMemberId={setMemberId}
-                  year={year}
-                  setYear={setYear}
-                  month={month}
-                  setMonth={setMonth}
-                  onReload={loadOverview}
-                  busy={busy || loading}
-                />
-                <Card title="イベント入力" subtitle="単発の収支や立替を登録">
-                  <form className="form" onSubmit={handleAddItem}>
-                    <label>
-                      日付
-                      <input
-                        type="date"
-                        value={eventForm.date}
-                        onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      種別
-                      <select
-                        value={eventForm.item_type}
-                        onChange={(e) => setEventForm({ ...eventForm, item_type: e.target.value as ItemType })}
-                      >
-                        <option value="">選択してください</option>
-                        {itemTypeOptions.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      金額（円・整数）
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        inputMode="numeric"
-                        value={eventForm.amount}
-                        onChange={(e) => setEventForm({ ...eventForm, amount: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      メモ（任意）
-                      <input
-                        type="text"
-                        value={eventForm.note}
-                        onChange={(e) => setEventForm({ ...eventForm, note: e.target.value })}
-                        placeholder="お店・用途など"
-                      />
-                    </label>
-                    <div className="actions">
-                      <button type="submit" className="primary" disabled={busy}>
-                        {busy ? '送信中…' : '追加する'}
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() =>
-                          setEventForm({ date: formatDateInput(today), item_type: '', amount: '', note: '' })
-                        }
-                        disabled={busy}
-                      >
-                        リセット
-                      </button>
-                    </div>
-                  </form>
-                </Card>
-              </section>
+              <InputScreen
+                members={members}
+                memberId={memberId}
+                setMemberId={setMemberId}
+                year={year}
+                setYear={setYear}
+                month={month}
+                setMonth={setMonth}
+                busy={busy}
+                loading={loading}
+                itemTypeOptions={itemTypeOptions}
+                eventForm={eventForm}
+                setEventForm={setEventForm}
+                onSubmit={handleAddItem}
+                onReset={() => setEventForm({ date: formatDateInput(today), item_type: '', amount: '', note: '' })}
+                onReload={loadOverview}
+              />
             )}
 
             {screen === 'fixed' && (
-              <div className="grid">
-                <Card title="固定費を登録" subtitle="毎月発生する支出を先に登録">
-                  <form className="form" onSubmit={handleAddRecurrent}>
-                    <label>
-                      登録者
-                      <select
-                        value={recurrentForm.member_id}
-                        onChange={(e) => setRecurrentForm({ ...recurrentForm, member_id: e.target.value })}
-                      >
-                        {members.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      種別
-                      <select
-                        value={recurrentForm.item_type}
-                        onChange={(e) =>
-                          setRecurrentForm({
-                            ...recurrentForm,
-                            item_type: e.target.value as ItemType,
-                          })
-                        }
-                      >
-                        <option value="">選択してください</option>
-                        {itemTypeOptions.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      金額（円・整数）
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        inputMode="numeric"
-                        value={recurrentForm.amount}
-                        onChange={(e) => setRecurrentForm({ ...recurrentForm, amount: e.target.value })}
-                      />
-                    </label>
-                    <div className="inline">
-                      <label>
-                        開始年
-                        <input
-                          type="number"
-                          min={2000}
-                          value={recurrentForm.start_y}
-                          onChange={(e) => setRecurrentForm({ ...recurrentForm, start_y: Number(e.target.value) })}
-                        />
-                      </label>
-                      <label>
-                        開始月
-                        <select
-                          value={recurrentForm.start_m}
-                          onChange={(e) => setRecurrentForm({ ...recurrentForm, start_m: Number(e.target.value) })}
-                        >
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                            <option key={m} value={m}>
-                              {m}月
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <div className="inline">
-                      <label>
-                        終了年（任意）
-                        <input
-                          type="number"
-                          value={recurrentForm.end_y}
-                          onChange={(e) => setRecurrentForm({ ...recurrentForm, end_y: e.target.value })}
-                          placeholder="例: 2026"
-                        />
-                      </label>
-                      <label>
-                        終了月（任意）
-                        <select
-                          value={recurrentForm.end_m}
-                          onChange={(e) => setRecurrentForm({ ...recurrentForm, end_m: e.target.value })}
-                        >
-                          <option value="">未指定</option>
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                            <option key={m} value={m}>
-                              {m}月
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <label>
-                      メモ（任意）
-                      <input
-                        type="text"
-                        value={recurrentForm.note}
-                        onChange={(e) => setRecurrentForm({ ...recurrentForm, note: e.target.value })}
-                      />
-                    </label>
-                    <div className="actions">
-                      <button type="submit" className="primary" disabled={busy}>
-                        {busy ? '送信中…' : '固定費を追加'}
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() =>
-                          setRecurrentForm({
-                            member_id: memberId,
-                            item_type: '',
-                            amount: '',
-                            note: '',
-                            start_y: year,
-                            start_m: month,
-                            end_y: '',
-                            end_m: '',
-                          })
-                        }
-                        disabled={busy}
-                      >
-                        リセット
-                      </button>
-                    </div>
-                  </form>
-                </Card>
-
-                <Card title="固定費一覧" subtitle="スワイプ/削除で管理">
-                  <div className="list">
-                    {recurrents.length === 0 && <p className="muted">登録された固定費はありません</p>}
-                    {recurrents.map((r) => (
-                      <div key={r.id} className="list-item">
-                        <div>
-                          <p className="label">{typeLabel(r.item_type)}</p>
-                          <p className="muted">登録者: {members.find((m) => m.id === r.member_id)?.label || r.member_id}</p>
-                          <p className="muted">
-                            {r.start_y}/{r.start_m} 〜 {r.end_y && r.end_m ? `${r.end_y}/${r.end_m}` : '継続'}
-                          </p>
-                          <p className="muted">{r.note || '-'}</p>
-                        </div>
-                        <div className="list-actions">
-                          <span className="amount">{r.amount.toLocaleString()}円</span>
-                          <button
-                            className="ghost danger-text"
-                            onClick={() => handleDeleteRecurrent(r.id, r.member_id)}
-                            disabled={busy}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
+              <FixedScreen
+                members={members}
+                itemTypeOptions={itemTypeOptions}
+                recurrentForm={recurrentForm}
+                setRecurrentForm={setRecurrentForm}
+                recurrents={recurrents}
+                busy={busy}
+                onSubmit={handleAddRecurrent}
+                onReset={() =>
+                  setRecurrentForm({
+                    member_id: memberId,
+                    item_type: '',
+                    amount: '',
+                    note: '',
+                    start_y: year,
+                    start_m: month,
+                    end_y: '',
+                    end_m: '',
+                  })
+                }
+                onDelete={handleDeleteRecurrent}
+              />
             )}
 
             {screen === 'plan' && (
-              <div className="stack">
-                <FilterBar
-                  memberId={memberId}
-                  setMemberId={setMemberId}
-                  year={year}
-                  setYear={setYear}
-                  month={month}
-                  setMonth={setMonth}
-                  onReload={loadOverview}
-                  busy={busy || loading}
-                />
-                <Card
-                  title="推奨振込額"
-                  subtitle={`${year}年${month}月 / ${members.find((m) => m.id === memberId)?.label || ''}`}
-                  highlight
-                >
-                  <div className="summary-grid">
-                    <SummaryRow label="推奨振込額" value={summary.recommended_transfer} />
-                    <SummaryRow
-                      label="実績振込（このメンバー）"
-                      value={transfersSummary.by_member[memberId] || 0}
-                    />
-                    <SummaryRow
-                      label="残り振込必要額"
-                      value={summary.recommended_transfer - (transfersSummary.by_member[memberId] || 0)}
-                    />
-                  </div>
-                  <div className="actions">
-                    <button
-                      className="primary"
-                      onClick={handleQuickTransfer}
-                      disabled={busy || summary.recommended_transfer <= 0}
-                    >
-                      推奨額で振込登録
-                    </button>
-                    <button className="ghost" onClick={() => setScreen('shared')}>
-                      共有サマリを見る
-                    </button>
-                  </div>
-                </Card>
-
-                <Card title="計算の内訳" subtitle="この月の収支バランス">
-                  <div className="summary-grid">
-                    <SummaryRow label="収入合計" value={summary.income_total} />
-                    <SummaryRow
-                      label="共通口座で支払うべきものを個人口座から支払った"
-                      value={summary.shared_from_personal_total}
-                      sign="-"
-                    />
-                    <SummaryRow
-                      label="個人口座で支払うべきものを共有口座から支払った"
-                      value={summary.personal_from_shared_total}
-                      sign="+"
-                    />
-                    <SummaryRow label="お小遣い合計" value={summary.pocket_total} sign="-" />
-                    <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
-                  </div>
-                </Card>
-
-                <Card title="当月の履歴" subtitle="計算に含まれる明細">
-                  <div className="list">
-                    {items.length === 0 && <p className="muted">当月のデータがありません</p>}
-                    {items.map((item) => (
-                      <div key={item.id} className="list-item">
-                        <div>
-                          <p className="label">
-                            {item.date || '-'} / {typeLabel(item.item_type)}
-                            {isRecurrentItem(item) && <span className="chip muted" style={{ marginLeft: 8 }}>固定費</span>}
-                          </p>
-                          <p className="muted">{item.note || '-'}</p>
-                        </div>
-                        <div className="list-actions">
-                          <span className="amount">{item.amount.toLocaleString()}円</span>
-                          <button
-                            className="ghost danger-text"
-                            onClick={() => handleDeleteItem(item.id)}
-                            disabled={busy}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <button className="ghost small" onClick={() => setScreen('history')}>
-                    履歴をすべて見る
-                  </button>
-                </Card>
-              </div>
+              <PlanScreen
+                members={members}
+                memberId={memberId}
+                setMemberId={setMemberId}
+                year={year}
+                setYear={setYear}
+                month={month}
+                setMonth={setMonth}
+                busy={busy}
+                loading={loading}
+                summary={summary}
+                transfersSummary={transfersSummary}
+                sharedSpending={sharedSpending}
+                items={items}
+                typeLabel={typeLabel}
+                isRecurrentItem={isRecurrentItem}
+                onReload={loadOverview}
+                onQuickTransfer={handleQuickTransfer}
+                onDeleteItem={handleDeleteItem}
+                onGoShared={() => setScreen('shared')}
+                onGoHistory={() => setScreen('history')}
+              />
             )}
 
             {screen === 'shared' && (
-              <div className="stack">
-                <PeriodBar
-                  year={year}
-                  setYear={setYear}
-                  month={month}
-                  setMonth={setMonth}
-                  onReload={loadOverview}
-                  busy={busy || loading}
-                />
-                <Card title="共通口座サマリ" subtitle="推奨額・実績・支出">
-                  <div className="summary-grid">
-                    <SummaryRow label="推奨振込額" value={summary.recommended_transfer} />
-                    <SummaryRow label="実績振込（合計）" value={transfersSummary.total || 0} />
-                    <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
-                    <SummaryRow label="口座収支" value={sharedBalance} />
-                  </div>
-                </Card>
-
-                <Card title="月次支出を登録" subtitle="共通口座からの支出を記録">
-                  <form className="form" onSubmit={handleSharedSpending}>
-                    <label>
-                      支出額（円・0以上）
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        inputMode="numeric"
-                        value={sharedForm.amount}
-                        onChange={(e) => setSharedForm({ ...sharedForm, amount: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      メモ（任意）
-                      <input
-                        type="text"
-                        value={sharedForm.note}
-                        onChange={(e) => setSharedForm({ ...sharedForm, note: e.target.value })}
-                        placeholder="内訳メモなど"
-                      />
-                    </label>
-                    <div className="actions">
-                      <button type="submit" className="primary" disabled={busy}>
-                        {busy ? '送信中…' : '支出を登録'}
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => setSharedForm({ amount: '', note: '' })}
-                        disabled={busy}
-                      >
-                        リセット
-                      </button>
-                    </div>
-                  </form>
-                </Card>
-
-                <Card title="当月の振込一覧" subtitle="削除して差し替え可能">
-                  <div className="list">
-                    {transfers.length === 0 && <p className="muted">当月の振込記録はありません</p>}
-                    {transfers.map((t) => (
-                      <div key={t.id} className="list-item">
-                        <div>
-                          <p className="label">
-                            {members.find((m) => m.id === t.member_id)?.label || t.member_id}
-                          </p>
-                          <p className="muted">{t.note || '-'}</p>
-                        </div>
-                        <div className="list-actions">
-                          <span className="amount">{t.amount.toLocaleString()}円</span>
-                          <button
-                            className="ghost danger-text"
-                            onClick={() => handleDeleteTransfer(t.id)}
-                            disabled={busy}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-
-                <Card title="共通口座 収支の推移" subtitle="入金-支出の差分を確認">
-                  <BalanceChart data={balanceHistory} />
-                </Card>
-              </div>
+              <SharedScreen
+                members={members}
+                year={year}
+                setYear={setYear}
+                month={month}
+                setMonth={setMonth}
+                busy={busy}
+                loading={loading}
+                summary={summary}
+                transfersSummary={transfersSummary}
+                sharedSpending={sharedSpending}
+                sharedBalance={sharedBalance}
+                balanceHistory={balanceHistory}
+                transfers={transfers}
+                sharedForm={sharedForm}
+                setSharedForm={setSharedForm}
+                onReload={loadOverview}
+                onSubmitShared={handleSharedSpending}
+                onDeleteTransfer={handleDeleteTransfer}
+              />
             )}
 
             {screen === 'history' && (
-              <div className="grid">
-                <Card title="イベント一覧" subtitle="入力内容の確認・削除">
-                  <div className="list">
-                    {items.length === 0 && <p className="muted">データがありません</p>}
-                    {items.map((item) => (
-                      <div key={item.id} className="list-item">
-                        <div>
-                          <p className="label">
-                            {item.date || '-'} / {typeLabel(item.item_type)}
-                            {isRecurrentItem(item) && <span className="chip muted" style={{ marginLeft: 8 }}>固定費</span>}
-                          </p>
-                          <p className="muted">{item.note || '-'}</p>
-                        </div>
-                        <div className="list-actions">
-                          <span className="amount">{item.amount.toLocaleString()}円</span>
-                          <button
-                            className="ghost danger-text"
-                            onClick={() => handleDeleteItem(item.id)}
-                            disabled={busy}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
+              <HistoryScreen
+                items={items}
+                busy={busy}
+                typeLabel={typeLabel}
+                isRecurrentItem={isRecurrentItem}
+                onDeleteItem={handleDeleteItem}
+              />
             )}
           </main>
 
-          <BottomNav active={screen} onChange={setScreen} />
+          <BottomNav active={screen} tabs={tabs} onChange={(key) => setScreen(key as Screen)} />
         </>
       )}
-    </div>
-  )
-}
-
-function BottomNav({ active, onChange }: { active: Screen; onChange: (s: Screen) => void }) {
-  const tabs: { key: Screen; label: string }[] = [
-    { key: 'home', label: 'ホーム' },
-    { key: 'plan', label: '振込計算' },
-    { key: 'input', label: '入力' },
-    { key: 'fixed', label: '固定費' },
-    { key: 'shared', label: '共有' },
-    { key: 'history', label: '履歴' },
-  ]
-  return (
-    <nav className="bottom-nav" aria-label="主要メニュー">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          className={`nav-btn ${active === t.key ? 'is-active' : ''}`}
-          onClick={() => onChange(t.key)}
-          type="button"
-        >
-          {t.label}
-        </button>
-      ))}
-    </nav>
-  )
-}
-
-function Card({
-  title,
-  subtitle,
-  children,
-  highlight,
-}: {
-  title: string
-  subtitle?: string
-  children: React.ReactNode
-  highlight?: boolean
-}) {
-  return (
-    <section className={`card ${highlight ? 'card-highlight' : ''}`}>
-      <div className="card-head">
-        <div>
-          <h2>{title}</h2>
-          {subtitle && <p className="muted">{subtitle}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  )
-}
-
-function FilterBar({
-  memberId,
-  setMemberId,
-  year,
-  setYear,
-  month,
-  setMonth,
-  onReload,
-  busy,
-}: {
-  memberId: string
-  setMemberId: (id: string) => void
-  year: number
-  setYear: (y: number) => void
-  month: number
-  setMonth: (m: number) => void
-  onReload: () => void
-  busy: boolean
-}) {
-  return (
-    <div className="filter-bar">
-      <div className="chip-group" role="group" aria-label="メンバー">
-        {members.map((m) => (
-          <button
-            key={m.id}
-            className={`chip ${memberId === m.id ? 'is-active' : ''}`}
-            onClick={() => setMemberId(m.id)}
-            type="button"
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-      <div className="period">
-        <input type="number" value={year} min={2000} onChange={(e) => setYear(Number(e.target.value))} />
-        <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>
-              {m}月
-            </option>
-          ))}
-        </select>
-        <button className="ghost small" onClick={onReload} disabled={busy}>
-          再読込
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function PeriodBar({
-  year,
-  setYear,
-  month,
-  setMonth,
-  onReload,
-  busy,
-}: {
-  year: number
-  setYear: (y: number) => void
-  month: number
-  setMonth: (m: number) => void
-  onReload: () => void
-  busy: boolean
-}) {
-  return (
-    <div className="filter-bar">
-      <div className="period">
-        <input type="number" value={year} min={2000} onChange={(e) => setYear(Number(e.target.value))} />
-        <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>
-              {m}月
-            </option>
-          ))}
-        </select>
-        <button className="ghost small" onClick={onReload} disabled={busy}>
-          再読込
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function MiniBalanceChart({ data }: { data: BalanceHistoryItem[] }) {
-  if (!data || data.length === 0) return <div className="muted">まだ収支データがありません</div>
-  return <BalanceChart data={data} />
-}
-
-function AlertBanner({
-  recommended,
-  transferred,
-  balance,
-  onAction,
-}: {
-  recommended: number
-  transferred: number
-  balance: number
-  onAction: () => void
-}) {
-  const deficit = balance < 0
-  const short = recommended > 0 && transferred < recommended
-  if (!deficit && !short) return null
-  return (
-    <div className={`toast ${deficit ? 'error' : 'error'}`}>
-      <div>
-        {deficit && <p>残高がマイナスです。追加の振込または支出確認を行ってください。</p>}
-        {short && !deficit && <p>推奨額まで振込が完了していません。早めに対応してください。</p>}
-      </div>
-      <button className="ghost small" onClick={onAction}>
-        確認する
-      </button>
-    </div>
-  )
-}
-
-function SummaryRow({ label, value, sign }: { label: string; value: number; sign?: '+' | '-' }) {
-  return (
-    <div className="summary-row">
-      <span className="summary-label">
-        {label}
-        {sign ? ` (${sign})` : ''}
-      </span>
-      <span className="summary-value">{value.toLocaleString()}円</span>
-    </div>
-  )
-}
-
-function BalanceChart({ data }: { data: BalanceHistoryItem[] }) {
-  if (!data || data.length === 0) {
-    return <div className="muted">まだ収支データがありません</div>
-  }
-
-  const points = data.map((d) => ({
-    label: `${d.year}/${String(d.month).padStart(2, '0')}`,
-    amount: d.balance,
-  }))
-
-  const maxAmount = Math.max(...points.map((p) => p.amount), 1)
-  const minAmount = Math.min(...points.map((p) => p.amount), 0)
-  const padding = 10
-  const width = 360
-  const height = 180
-  const step = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0
-
-  const svgPoints = points
-    .map((p, i) => {
-      const x = padding + i * step
-      const ratio = (p.amount - minAmount) / (maxAmount - minAmount || 1)
-      const y = height - padding - ratio * (height - padding * 2)
-      return `${x},${y}`
-    })
-    .join(' ')
-
-  return (
-    <div className="chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="共通口座収支の推移">
-        <polyline fill="none" stroke="#2563eb" strokeWidth="3" points={svgPoints} />
-        {points.map((p, i) => {
-          const x = padding + i * step
-          const ratio = (p.amount - minAmount) / (maxAmount - minAmount || 1)
-          const y = height - padding - ratio * (height - padding * 2)
-          return (
-            <g key={p.label}>
-              <circle cx={x} cy={y} r="4" fill="#2563eb" />
-              <text x={x} y={height - 2} textAnchor="middle" fontSize="10" fill="#64748b">
-                {p.label}
-              </text>
-              <text x={x} y={y - 8} textAnchor="middle" fontSize="10" fill="#0f172a">
-                {p.amount.toLocaleString()}円
-              </text>
-            </g>
-          )
-        })}
-      </svg>
     </div>
   )
 }

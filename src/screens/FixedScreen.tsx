@@ -1,0 +1,190 @@
+import React from 'react'
+import type { ItemType, Recurrent } from '../lib/api/types'
+import { Card } from '../components/Card'
+
+type Member = { id: string; label: string }
+
+type Props = {
+  members: Member[]
+  itemTypeOptions: { value: ItemType; label: string }[]
+  recurrentForm: {
+    member_id: string
+    item_type: ItemType | ''
+    amount: string
+    note: string
+    start_y: number
+    start_m: number
+    end_y: string | number | ''
+    end_m: string | number | ''
+  }
+  setRecurrentForm: React.Dispatch<
+    React.SetStateAction<{
+      member_id: string
+      item_type: ItemType | ''
+      amount: string
+      note: string
+      start_y: number
+      start_m: number
+      end_y: string | number | ''
+      end_m: string | number | ''
+    }>
+  >
+  recurrents: Recurrent[]
+  busy: boolean
+  onSubmit: (e: React.FormEvent) => void
+  onReset: () => void
+  onDelete: (id: string, ownerId: string) => void
+}
+
+export function FixedScreen({
+  members,
+  itemTypeOptions,
+  recurrentForm,
+  setRecurrentForm,
+  recurrents,
+  busy,
+  onSubmit,
+  onReset,
+  onDelete,
+}: Props) {
+  return (
+    <div className="grid">
+      <Card title="固定費を登録" subtitle="毎月発生する支出を先に登録">
+        <form className="form" onSubmit={onSubmit}>
+          <label>
+            登録者
+            <select
+              value={recurrentForm.member_id}
+              onChange={(e) => setRecurrentForm({ ...recurrentForm, member_id: e.target.value })}
+            >
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            種別
+            <select
+              value={recurrentForm.item_type}
+              onChange={(e) =>
+                setRecurrentForm({
+                  ...recurrentForm,
+                  item_type: e.target.value as ItemType,
+                })
+              }
+            >
+              <option value="">選択してください</option>
+              {itemTypeOptions.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            金額（円・整数）
+            <input
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={recurrentForm.amount}
+              onChange={(e) => setRecurrentForm({ ...recurrentForm, amount: e.target.value })}
+            />
+          </label>
+          <div className="inline">
+            <label>
+              開始年
+              <input
+                type="number"
+                min={2000}
+                value={recurrentForm.start_y}
+                onChange={(e) => setRecurrentForm({ ...recurrentForm, start_y: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              開始月
+              <select
+                value={recurrentForm.start_m}
+                onChange={(e) => setRecurrentForm({ ...recurrentForm, start_m: Number(e.target.value) })}
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {m}月
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="inline">
+            <label>
+              終了年（任意）
+              <input
+                type="number"
+                value={recurrentForm.end_y}
+                onChange={(e) => setRecurrentForm({ ...recurrentForm, end_y: e.target.value })}
+                placeholder="例: 2026"
+              />
+            </label>
+            <label>
+              終了月（任意）
+              <select
+                value={recurrentForm.end_m}
+                onChange={(e) => setRecurrentForm({ ...recurrentForm, end_m: e.target.value })}
+              >
+                <option value="">未指定</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {m}月
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label>
+            メモ（任意）
+            <input
+              type="text"
+              value={recurrentForm.note}
+              onChange={(e) => setRecurrentForm({ ...recurrentForm, note: e.target.value })}
+            />
+          </label>
+          <div className="actions">
+            <button type="submit" className="primary" disabled={busy}>
+              {busy ? '送信中…' : '固定費を追加'}
+            </button>
+            <button type="button" className="ghost" onClick={onReset} disabled={busy}>
+              リセット
+            </button>
+          </div>
+        </form>
+      </Card>
+
+      <Card title="固定費一覧" subtitle="スワイプ/削除で管理">
+        <div className="list">
+          {recurrents.length === 0 && <p className="muted">登録された固定費はありません</p>}
+          {recurrents.map((r) => (
+            <div key={r.id} className="list-item">
+              <div>
+                <p className="label">{itemTypeOptions.find((i) => i.value === r.item_type)?.label || r.item_type}</p>
+                <p className="muted">登録者: {members.find((m) => m.id === r.member_id)?.label || r.member_id}</p>
+                <p className="muted">
+                  {r.start_y}/{r.start_m} 〜 {r.end_y && r.end_m ? `${r.end_y}/${r.end_m}` : '継続'}
+                </p>
+                <p className="muted">{r.note || '-'}</p>
+              </div>
+              <div className="list-actions">
+                <span className="amount">{r.amount.toLocaleString()}円</span>
+                <button className="ghost danger-text" onClick={() => onDelete(r.id, r.member_id)} disabled={busy}>
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  )
+}
