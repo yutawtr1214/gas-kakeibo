@@ -1,4 +1,3 @@
-import React from 'react'
 import type { Item, ItemType, Summary, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
@@ -66,12 +65,12 @@ export function PlanScreen({
         busy={busy || loading}
       />
       <Card
-        title="推奨振込額"
+        title="今月の必要振込額"
         subtitle={`${year}年${month}月 / ${members.find((m) => m.id === memberId)?.label || ''}`}
         highlight
       >
         <div className="summary-grid">
-          <SummaryRow label="推奨振込額" value={summary.recommended_transfer} />
+          <SummaryRow label="必要振込額" value={summary.recommended_transfer} />
           <SummaryRow label="実績振込（このメンバー）" value={transfersSummary.by_member[memberId] || 0} />
           <SummaryRow
             label="残り振込必要額"
@@ -80,27 +79,19 @@ export function PlanScreen({
         </div>
         <div className="actions">
           <button className="primary" onClick={onQuickTransfer} disabled={busy || summary.recommended_transfer <= 0}>
-            推奨額で振込登録
+            必要額で振込登録
           </button>
-        <button className="ghost" onClick={onGoShared}>
-          共有サマリを見る
-        </button>
+          <button className="ghost" onClick={onGoShared}>
+            共有サマリを見る
+          </button>
         </div>
       </Card>
 
       <Card title="計算の内訳" subtitle="この月の収支バランス">
         <div className="summary-grid">
           <SummaryRow label="収入合計" value={summary.income_total} />
-          <SummaryRow
-            label="共通口座で支払うべきものを個人口座から支払った"
-            value={summary.shared_from_personal_total}
-            sign="-"
-          />
-          <SummaryRow
-            label="個人口座で支払うべきものを共有口座から支払った"
-            value={summary.personal_from_shared_total}
-            sign="+"
-          />
+          <SummaryRow label="個人口座で立て替え" value={summary.shared_from_personal_total} sign="-" />
+          <SummaryRow label="共有口座から前借り" value={summary.personal_from_shared_total} sign="+" />
           <SummaryRow label="お小遣い合計" value={summary.pocket_total} sign="-" />
           <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
         </div>

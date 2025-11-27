@@ -358,7 +358,7 @@ function App() {
     if (!token) return showError('未ログインです')
     const amount = summary.recommended_transfer
     if (!Number.isFinite(amount) || amount <= 0) {
-      return showError('推奨額が0円以下のため登録できません')
+      return showError('必要振込額が0円以下のため登録できません')
     }
     await withBusy(async () => {
       const result = await api.addTransfer({
@@ -367,7 +367,7 @@ function App() {
         year,
         month,
         amount,
-        note: `${year}年${month}月 推奨額を自動登録`,
+        note: `${year}年${month}月 必要額を自動登録`,
       })
       if (result.status === 'ok' && result.data) {
         setTransfers(result.data)

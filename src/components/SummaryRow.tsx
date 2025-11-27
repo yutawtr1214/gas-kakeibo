@@ -1,5 +1,3 @@
-import React from 'react'
-
 type Props = { label: string; value: number; sign?: '+' | '-' }
 
 export function SummaryRow({ label, value, sign }: Props) {

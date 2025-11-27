@@ -1,4 +1,3 @@
-import React from 'react'
 import type { BalanceHistoryItem, Summary, Transfer, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
@@ -59,9 +58,9 @@ export function SharedScreen({
         onReload={onReload}
         busy={busy || loading}
       />
-      <Card title="共通口座サマリ" subtitle="推奨額・実績・支出">
+      <Card title="共通口座サマリ" subtitle="必要額・実績・支出">
         <div className="summary-grid">
-          <SummaryRow label="推奨振込額" value={summary.recommended_transfer} />
+          <SummaryRow label="必要振込額" value={summary.recommended_transfer} />
           <SummaryRow label="実績振込（合計）" value={transfersSummary.total || 0} />
           <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
           <SummaryRow label="口座収支" value={sharedBalance} />

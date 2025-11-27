@@ -1,34 +1,25 @@
-import React from 'react'
+import type React from 'react'
 import type { ItemType, Recurrent } from '../lib/api/types'
 import { Card } from '../components/Card'
 
 type Member = { id: string; label: string }
 
+type RecurrentFormState = {
+  member_id: string
+  item_type: ItemType | ''
+  amount: string
+  note: string
+  start_y: number
+  start_m: number
+  end_y: string
+  end_m: string
+}
+
 type Props = {
   members: Member[]
   itemTypeOptions: { value: ItemType; label: string }[]
-  recurrentForm: {
-    member_id: string
-    item_type: ItemType | ''
-    amount: string
-    note: string
-    start_y: number
-    start_m: number
-    end_y: string | number | ''
-    end_m: string | number | ''
-  }
-  setRecurrentForm: React.Dispatch<
-    React.SetStateAction<{
-      member_id: string
-      item_type: ItemType | ''
-      amount: string
-      note: string
-      start_y: number
-      start_m: number
-      end_y: string | number | ''
-      end_m: string | number | ''
-    }>
-  >
+  recurrentForm: RecurrentFormState
+  setRecurrentForm: React.Dispatch<React.SetStateAction<RecurrentFormState>>
   recurrents: Recurrent[]
   busy: boolean
   onSubmit: (e: React.FormEvent) => void

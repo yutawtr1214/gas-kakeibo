@@ -1,5 +1,3 @@
-import React from 'react'
-
 type Props = {
   recommended: number
   transferred: number
@@ -15,7 +13,7 @@ export function AlertBanner({ recommended, transferred, balance, onAction }: Pro
     <div className={`toast ${deficit ? 'error' : 'error'}`}>
       <div>
         {deficit && <p>残高がマイナスです。追加の振込または支出確認を行ってください。</p>}
-        {short && !deficit && <p>推奨額まで振込が完了していません。早めに対応してください。</p>}
+        {short && !deficit && <p>必要額まで振込が完了していません。早めに対応してください。</p>}
       </div>
       <button className="ghost small" onClick={onAction}>
         確認する

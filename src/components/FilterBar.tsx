@@ -1,5 +1,3 @@
-import React from 'react'
-
 type Member = { id: string; label: string }
 
 type Props = {

@@ -1,4 +1,3 @@
-import React from 'react'
 import type { Item, ItemType } from '../lib/api/types'
 import { Card } from '../components/Card'
 

@@ -1,4 +1,3 @@
-import React from 'react'
 import type { BalanceHistoryItem } from '../lib/api/types'
 
 type ChartProps = {

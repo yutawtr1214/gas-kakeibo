@@ -1,4 +1,4 @@
-import React from 'react'
+import type React from 'react'
 import type { ItemType } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { FilterBar } from '../components/FilterBar'
