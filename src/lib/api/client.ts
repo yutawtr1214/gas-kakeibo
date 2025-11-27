@@ -4,6 +4,7 @@ import type {
   ListResponse,
   OverviewResponse,
   Recurrent,
+  Settings,
   Transfer,
 } from './types'
 
@@ -90,6 +91,23 @@ export const api = {
       'GET',
     )
   },
+  updateRecurrent(params: {
+    token: string
+    id: string
+    start_y: number
+    start_m: number
+    end_y: string | number | null
+    end_m: string | number | null
+  }) {
+    return callApi<Recurrent[]>({
+      ...params,
+      start_y: String(params.start_y),
+      start_m: String(params.start_m),
+      end_y: params.end_y === null ? '' : String(params.end_y),
+      end_m: params.end_m === null ? '' : String(params.end_m),
+      mode: 'recurrent_update',
+    })
+  },
   addRecurrent(params: {
     token: string
     member_id: string
@@ -158,5 +176,16 @@ export const api = {
   },
   balanceHistory(token: string) {
     return callApi<BalanceHistoryItem[]>({ mode: 'balance_history', token }, 'GET')
+  },
+  getSettings(token: string) {
+    return callApi<Settings>({ mode: 'settings_get', token }, 'GET')
+  },
+  setSettings(token: string, params: { husband_name: string; wife_name: string }) {
+    return callApi<Settings>({
+      mode: 'settings_set',
+      token,
+      husband_name: params.husband_name,
+      wife_name: params.wife_name,
+    })
   },
 }

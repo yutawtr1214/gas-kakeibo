@@ -7,6 +7,7 @@ function doGet(e) {
   if (params.mode === 'spending_get') return handleSpendingGet(params);
   if (params.mode === 'spending_history') return handleSpendingHistory(params); // 互換のため残すが balance_history を推奨
   if (params.mode === 'balance_history') return handleBalanceHistory(params);
+  if (params.mode === 'settings_get') return handleSettingsGet(params);
   return buildError('invalid_mode');
 }
 
@@ -27,6 +28,8 @@ function doPost(e) {
       return withLock(() => handleRecurrentAdd(params));
     case 'recurrent_delete':
       return withLock(() => handleRecurrentDelete(params));
+    case 'recurrent_update':
+      return withLock(() => handleRecurrentUpdate(params));
     case 'transfer_add':
       return withLock(() => handleTransferAdd(params));
     case 'transfer_delete':
@@ -37,6 +40,8 @@ function doPost(e) {
       return handleSpendingHistory(params);
     case 'balance_history':
       return handleBalanceHistory(params);
+    case 'settings_set':
+      return withLock(() => handleSettingsSet(params));
     default:
       return buildError('invalid_mode');
   }

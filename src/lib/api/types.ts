@@ -51,6 +51,12 @@ export type BalanceHistoryItem = {
   balance: number
 }
 
+export type Settings = {
+  husband_name: string
+  wife_name: string
+  updated_at: string
+}
+
 export type OverviewResponse = ListResponse & {
   transfers: TransfersResult
   transfer_items: Transfer[]

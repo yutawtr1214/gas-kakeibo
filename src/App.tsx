@@ -1,7 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { api } from './lib/api/client'
-import type { BalanceHistoryItem, Item, ItemType, Recurrent, Summary, Transfer, TransfersResult } from './lib/api/types'
+import type {
+  BalanceHistoryItem,
+  Item,
+  ItemType,
+  Recurrent,
+  Summary,
+  Transfer,
+  TransfersResult,
+  Settings,
+} from './lib/api/types'
 import { BottomNav } from './components/BottomNav'
 import { HomeScreen } from './screens/HomeScreen'
 import { InputScreen } from './screens/InputScreen'
@@ -9,10 +18,11 @@ import { PlanScreen } from './screens/PlanScreen'
 import { FixedScreen } from './screens/FixedScreen'
 import { SharedScreen } from './screens/SharedScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
+import { SettingsModal } from './components/SettingsModal'
 
 type Screen = 'home' | 'input' | 'fixed' | 'shared' | 'history' | 'plan'
 
-const members = [
+const defaultMembers = [
   { id: 'husband', label: '夫' },
   { id: 'wife', label: '妻' },
 ]
@@ -65,7 +75,8 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
 
-  const [memberId, setMemberId] = useState(members[0]?.id || '')
+  const [members, setMembers] = useState(defaultMembers)
+  const [memberId, setMemberId] = useState(defaultMembers[0]?.id || '')
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
 
@@ -77,6 +88,9 @@ function App() {
   const [sharedSpending, setSharedSpending] = useState(0)
   const [sharedBalance, setSharedBalance] = useState(0)
   const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryItem[]>([])
+  const [settingsForm, setSettingsForm] = useState({ husband_name: '', wife_name: '' })
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
+  const [editingRecurrent, setEditingRecurrent] = useState<Recurrent | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -128,6 +142,7 @@ function App() {
   // ログイン後データ読み込み
   useEffect(() => {
     if (!loggedIn || !token) return
+    loadSettings()
     loadOverview()
     loadRecurrents()
     loadBalanceHistory()
@@ -208,6 +223,34 @@ function App() {
     setSharedBalance(0)
     setBalanceHistory([])
     setSummary(initialSummary)
+    setMembers(defaultMembers)
+    setSettingsForm({ husband_name: '', wife_name: '' })
+  }
+
+  async function loadSettings() {
+    if (!token) return
+    try {
+      const result = await api.getSettings(token)
+      if (result.status === 'ok' && result.data) {
+        applySettings(result.data)
+      } else {
+        applySettings({ husband_name: '夫', wife_name: '妻', updated_at: '' })
+      }
+    } catch {
+      applySettings({ husband_name: '夫', wife_name: '妻', updated_at: '' })
+    }
+  }
+
+  function applySettings(data: Settings) {
+    const nextMembers = [
+      { id: 'husband', label: data.husband_name || '夫' },
+      { id: 'wife', label: data.wife_name || '妻' },
+    ]
+    setMembers(nextMembers)
+    if (!nextMembers.find((m) => m.id === memberId)) {
+      setMemberId(nextMembers[0]?.id || '')
+    }
+    setSettingsForm({ husband_name: nextMembers[0].label, wife_name: nextMembers[1].label })
   }
 
   async function loadOverview() {
@@ -342,7 +385,7 @@ function App() {
 
   async function handleDeleteRecurrent(id: string, ownerId: string) {
     if (!token) return
-    if (!window.confirm('この固定費を削除しますか？')) return
+    if (!window.confirm('この固定費を削除すると過去の月の計上にも影響する可能性があります。削除しますか？')) return
     await withBusy(async () => {
       const result = await api.deleteRecurrent(token, id, ownerId)
       if (result.status === 'ok' && result.data) {
@@ -350,6 +393,27 @@ function App() {
         await loadOverview()
       } else {
         showError(result.message || '削除に失敗しました')
+      }
+    })
+  }
+
+  async function handleUpdateRecurrent(payload: {
+    id: string
+    start_y: number
+    start_m: number
+    end_y: string | number | null
+    end_m: string | number | null
+  }) {
+    if (!token) return
+    await withBusy(async () => {
+      const result = await api.updateRecurrent({ token, ...payload })
+      if (result.status === 'ok' && result.data) {
+        setRecurrents(result.data)
+        setEditingRecurrent(null)
+        await loadOverview()
+        showSuccess('固定費の期間を更新しました')
+      } else {
+        showError(result.message || '更新に失敗しました')
       }
     })
   }
@@ -418,6 +482,25 @@ function App() {
     })
   }
 
+  async function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault()
+    if (!token) return
+    const maxLen = 5
+    if (settingsForm.husband_name.length > maxLen || settingsForm.wife_name.length > maxLen) {
+      return showError(`名前は${maxLen}文字以内で入力してください`)
+    }
+    await withBusy(async () => {
+      const result = await api.setSettings(token, settingsForm)
+      if (result.status === 'ok' && result.data) {
+        applySettings(result.data)
+        showSuccess('設定を保存しました')
+        setSettingsModalOpen(false)
+      } else {
+        showError(result.message || '設定の保存に失敗しました')
+      }
+    })
+  }
+
   if (!apiBasePresent()) {
     return (
       <div className="page">
@@ -434,9 +517,14 @@ function App() {
           <h1>月次キャッシュフロー</h1>
         </div>
         {loggedIn && (
-          <button className="ghost small" onClick={handleLogout}>
-            ログアウト
-          </button>
+          <div className="inline" style={{ gap: 8 }}>
+            <button className="ghost small" onClick={() => setSettingsModalOpen(true)}>
+              設定
+            </button>
+            <button className="ghost small" onClick={handleLogout}>
+              ログアウト
+            </button>
+          </div>
         )}
       </header>
 
@@ -525,6 +613,9 @@ function App() {
                   })
                 }
                 onDelete={handleDeleteRecurrent}
+                onEdit={(r) => setEditingRecurrent(r)}
+                editing={editingRecurrent}
+                onUpdate={handleUpdateRecurrent}
               />
             )}
 
@@ -588,6 +679,16 @@ function App() {
           </main>
 
           <BottomNav active={screen} tabs={tabs} onChange={(key) => setScreen(key as Screen)} />
+          <SettingsModal
+            open={settingsModalOpen}
+            onClose={() => setSettingsModalOpen(false)}
+            husband={settingsForm.husband_name}
+            wife={settingsForm.wife_name}
+            setHusband={(v) => setSettingsForm((p) => ({ ...p, husband_name: v }))}
+            setWife={(v) => setSettingsForm((p) => ({ ...p, wife_name: v }))}
+            onSubmit={handleSaveSettings}
+            busy={busy}
+          />
         </>
       )}
     </div>

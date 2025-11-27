@@ -2,6 +2,7 @@ const SHEET_NAME = 'items';
 const RECURRENT_SHEET_NAME = 'recurrents';
 const TRANSFER_SHEET_NAME = 'transfers';
 const SHARED_SPENDING_SHEET_NAME = 'shared_spending';
+const SETTINGS_SHEET_NAME = 'settings';
 const TIMEZONE = 'Asia/Tokyo';
 const DATE_FORMAT = 'yyyy-MM-dd';
 

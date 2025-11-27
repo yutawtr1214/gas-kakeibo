@@ -22,6 +22,12 @@ function getSharedSpendingSheet() {
   return sheet;
 }
 
+function getSettingsSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SETTINGS_SHEET_NAME);
+  if (!sheet) throw new Error('Sheet not found: ' + SETTINGS_SHEET_NAME);
+  return sheet;
+}
+
 function normalizeIndex(header) {
   const expected = [
     'id',
@@ -95,6 +101,20 @@ function normalizeTransferIndex(header) {
 
 function normalizeSharedSpendingIndex(header) {
   const expected = ['id', 'year', 'month', 'amount', 'note', 'created_at', 'updated_at'];
+  const map = {};
+  header.forEach((name, i) => {
+    const key = (name || '').toString().trim().toLowerCase();
+    if (key) map[key] = i;
+  });
+  const idx = {};
+  expected.forEach((key, defaultPos) => {
+    idx[key] = map[key] !== undefined ? map[key] : defaultPos;
+  });
+  return idx;
+}
+
+function normalizeSettingsIndex(header) {
+  const expected = ['husband_name', 'wife_name', 'updated_at'];
   const map = {};
   header.forEach((name, i) => {
     const key = (name || '').toString().trim().toLowerCase();

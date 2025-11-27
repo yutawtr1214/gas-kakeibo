@@ -111,9 +111,15 @@ export function PlanScreen({
               </div>
               <div className="list-actions">
                 <span className="amount">{item.amount.toLocaleString()}円</span>
-                <button className="ghost danger-text" onClick={() => onDeleteItem(item.id)} disabled={busy}>
-                  削除
-                </button>
+                {!isRecurrentItem(item) ? (
+                  <button className="ghost danger-text" onClick={() => onDeleteItem(item.id)} disabled={busy}>
+                    削除
+                  </button>
+                ) : (
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    固定費は固定費タブで編集
+                  </span>
+                )}
               </div>
             </div>
           ))}

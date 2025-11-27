@@ -1,4 +1,4 @@
-import type React from 'react'
+import React from 'react'
 import type { ItemType, Recurrent } from '../lib/api/types'
 import { Card } from '../components/Card'
 
@@ -25,6 +25,9 @@ type Props = {
   onSubmit: (e: React.FormEvent) => void
   onReset: () => void
   onDelete: (id: string, ownerId: string) => void
+  onEdit: (r: Recurrent | null) => void
+  editing: Recurrent | null
+  onUpdate: (payload: { id: string; start_y: number; start_m: number; end_y: string | number | null; end_m: string | number | null }) => void
 }
 
 export function FixedScreen({
@@ -37,7 +40,40 @@ export function FixedScreen({
   onSubmit,
   onReset,
   onDelete,
+  onEdit,
+  editing,
+  onUpdate,
 }: Props) {
+  const [editState, setEditState] = React.useState({
+    start_y: editing?.start_y || new Date().getFullYear(),
+    start_m: editing?.start_m || new Date().getMonth() + 1,
+    end_y: editing?.end_y ? String(editing.end_y) : '',
+    end_m: editing?.end_m ? String(editing.end_m) : '',
+  })
+
+  React.useEffect(() => {
+    if (editing) {
+      setEditState({
+        start_y: editing.start_y,
+        start_m: editing.start_m,
+        end_y: editing.end_y ? String(editing.end_y) : '',
+        end_m: editing.end_m ? String(editing.end_m) : '',
+      })
+    }
+  }, [editing])
+
+  function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editing) return
+    onUpdate({
+      id: editing.id,
+      start_y: Number(editState.start_y),
+      start_m: Number(editState.start_m),
+      end_y: editState.end_y === '' ? null : Number(editState.end_y),
+      end_m: editState.end_m === '' ? null : Number(editState.end_m),
+    })
+  }
+
   return (
     <div className="grid">
       <Card title="固定費を登録" subtitle="毎月発生する支出を先に登録">
@@ -153,7 +189,7 @@ export function FixedScreen({
         </form>
       </Card>
 
-      <Card title="固定費一覧" subtitle="スワイプ/削除で管理">
+      <Card title="固定費一覧" subtitle="期間の編集が可能です">
         <div className="list">
           {recurrents.length === 0 && <p className="muted">登録された固定費はありません</p>}
           {recurrents.map((r) => (
@@ -168,6 +204,9 @@ export function FixedScreen({
               </div>
               <div className="list-actions">
                 <span className="amount">{r.amount.toLocaleString()}円</span>
+                <button className="ghost" onClick={() => onEdit(r)} disabled={busy} style={{ marginRight: 8 }}>
+                  編集
+                </button>
                 <button className="ghost danger-text" onClick={() => onDelete(r.id, r.member_id)} disabled={busy}>
                   削除
                 </button>
@@ -176,6 +215,76 @@ export function FixedScreen({
           ))}
         </div>
       </Card>
+
+      {editing && (
+        <Card
+          title="固定費の期間を編集"
+          subtitle={`${itemTypeOptions.find((i) => i.value === editing.item_type)?.label || editing.item_type} / ${
+            members.find((m) => m.id === editing.member_id)?.label || editing.member_id
+          }`}
+        >
+          <form className="form" onSubmit={handleUpdate}>
+            <p className="muted">金額・種別は変更できません。終了月は当月以降を指定してください。</p>
+            <div className="inline">
+              <label>
+                開始年
+                <input
+                  type="number"
+                  min={2000}
+                  value={editState.start_y}
+                  onChange={(e) => setEditState({ ...editState, start_y: Number(e.target.value) })}
+                />
+              </label>
+              <label>
+                開始月
+                <select
+                  value={editState.start_m}
+                  onChange={(e) => setEditState({ ...editState, start_m: Number(e.target.value) })}
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      {m}月
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="inline">
+              <label>
+                終了年（任意・当月以降）
+                <input
+                  type="number"
+                  value={editState.end_y}
+                  onChange={(e) => setEditState({ ...editState, end_y: e.target.value })}
+                  placeholder="例: 2026"
+                />
+              </label>
+              <label>
+                終了月（任意）
+                <select
+                  value={editState.end_m}
+                  onChange={(e) => setEditState({ ...editState, end_m: e.target.value })}
+                >
+                  <option value="">未指定</option>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      {m}月
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="actions">
+              <button type="submit" className="primary" disabled={busy}>
+                {busy ? '送信中…' : '期間を更新'}
+              </button>
+              <button type="button" className="ghost" onClick={() => onEdit(null)} disabled={busy}>
+                キャンセル
+              </button>
+            </div>
+          </form>
+        </Card>
+      )}
     </div>
   )
 }
