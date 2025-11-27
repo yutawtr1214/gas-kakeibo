@@ -20,8 +20,8 @@ const members = [
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
   { value: 'INCOME', label: '収入' },
-  { value: 'SHARED_SHOULD_PAY_BUT_PERSONAL_PAID', label: '共通口座で支払うべきものを個人口座から支払った' },
-  { value: 'PERSONAL_SHOULD_PAY_BUT_SHARED_PAID', label: '個人口座で支払うべきものを共有口座から支払った' },
+  { value: 'SHARED_SHOULD_PAY_BUT_PERSONAL_PAID', label: '個人口座から立て替え' },
+  { value: 'PERSONAL_SHOULD_PAY_BUT_SHARED_PAID', label: '共有口座で前借り' },
   { value: 'POCKET_MONEY', label: 'お小遣い' },
 ]
 
@@ -35,6 +35,10 @@ function formatDateInput(d: Date) {
 function typeLabel(t: ItemType) {
   const hit = itemTypeOptions.find((o) => o.value === t)
   return hit ? hit.label : t
+}
+
+function isRecurrentItem(item: Item) {
+  return item.id.startsWith('rec_')
 }
 
 const initialSummary: Summary = {
@@ -146,6 +150,16 @@ function App() {
     setToast({ type: 'success', message })
   }
 
+  function parseAmount(raw: string | number, label: string, allowZero = false) {
+    const num = Number(raw)
+    const min = allowZero ? 0 : 1
+    if (!Number.isInteger(num) || num < min) {
+      showError(`${label}は${min}以上の整数で入力してください`)
+      return null
+    }
+    return num
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoginError('')
@@ -240,8 +254,8 @@ function App() {
     e.preventDefault()
     if (!token) return showError('未ログインです')
     if (!eventForm.item_type || !eventForm.amount) return showError('種別と金額は必須です')
-    const amountNum = Number(eventForm.amount)
-    if (!Number.isInteger(amountNum) || amountNum <= 0) return showError('金額は1以上の整数で入力してください')
+    const amountNum = parseAmount(eventForm.amount, '金額')
+    if (amountNum === null) return
 
     await withBusy(async () => {
       const result = await api.addItem({
@@ -283,8 +297,8 @@ function App() {
     e.preventDefault()
     if (!token) return showError('未ログインです')
     if (!recurrentForm.item_type || !recurrentForm.amount) return showError('種別と金額は必須です')
-    const amountNum = Number(recurrentForm.amount)
-    if (!Number.isInteger(amountNum) || amountNum <= 0) return showError('金額は1以上の整数で入力してください')
+    const amountNum = parseAmount(recurrentForm.amount, '金額')
+    if (amountNum === null) return
 
     await withBusy(async () => {
       const result = await api.addRecurrent({
@@ -374,8 +388,8 @@ function App() {
   async function handleSharedSpending(e: React.FormEvent) {
     e.preventDefault()
     if (!token) return showError('未ログインです')
-    const amountNum = Number(sharedForm.amount)
-    if (!Number.isInteger(amountNum) || amountNum < 0) return showError('支出額は0以上の整数で入力してください')
+    const amountNum = parseAmount(sharedForm.amount, '支出額', true)
+    if (amountNum === null) return
     await withBusy(async () => {
       const result = await api.setSharedSpending({
         token,
@@ -450,36 +464,20 @@ function App() {
               </div>
             )}
 
-            {screen === 'home' && (
-              <section className="stack">
-                <Card title="共有口座の現在地" subtitle="残高と今月の差分を確認" highlight>
-                  <div className="summary-grid">
-                    <SummaryRow label="推奨振込額" value={summary.recommended_transfer} />
-                    <SummaryRow label="今月の実績振込（合計）" value={transfersSummary.total || 0} />
-                    <SummaryRow label="今月支出（共通口座）" value={sharedSpending} sign="-" />
-                    <SummaryRow label="現在残高" value={sharedBalance} />
-                  </div>
-                  <div className="callout">
-                    <div>
-                      <p className="muted">進捗</p>
-                      <div className="big-number">
-                        {progressPercent(summary.recommended_transfer, transfersSummary.total)}%
-                      </div>
-                    </div>
-                    <div className="callout-actions">
-                      <button
-                        className="primary"
-                        onClick={handleQuickTransfer}
-                        disabled={busy || summary.recommended_transfer <= 0}
-                      >
-                        推奨額で振込登録
-                      </button>
-                      <button className="ghost" onClick={() => setScreen('shared')}>
-                        共有の詳細へ
-                      </button>
-                    </div>
-                  </div>
-                </Card>
+          {screen === 'home' && (
+            <section className="stack">
+              <Card title="共有口座の現在地" subtitle="残高と今月の差分を確認" highlight>
+                <div className="summary-grid">
+                  <SummaryRow label="今月の実績振込（合計）" value={transfersSummary.total || 0} />
+                  <SummaryRow label="今月支出（共通口座）" value={sharedSpending} sign="-" />
+                  <SummaryRow label="現在残高" value={sharedBalance} />
+                </div>
+                <div className="actions" style={{ marginTop: '12px' }}>
+                  <button className="ghost" onClick={() => setScreen('shared')}>
+                    共有の詳細へ
+                  </button>
+                </div>
+              </Card>
 
                 <Card title="収支の推移" subtitle="直近6ヶ月">
                   <MiniBalanceChart data={balanceHistory.slice(-6)} />
@@ -566,34 +564,6 @@ function App() {
                       </button>
                     </div>
                   </form>
-                </Card>
-                <Card title="最近のイベント" subtitle="直近5件を確認">
-                  <div className="list">
-                    {items.slice(0, 5).map((item) => (
-                      <div key={item.id} className="list-item">
-                        <div>
-                          <p className="label">
-                            {item.date || '-'} / {typeLabel(item.item_type)}
-                          </p>
-                          <p className="muted">{item.note || '-'}</p>
-                        </div>
-                        <div className="list-actions">
-                          <span className="amount">{item.amount.toLocaleString()}円</span>
-                          <button
-                            className="ghost danger-text"
-                            onClick={() => handleDeleteItem(item.id)}
-                            disabled={busy}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {items.length === 0 && <p className="muted">まだデータがありません</p>}
-                  </div>
-                  <button className="ghost small" onClick={() => setScreen('history')}>
-                    履歴をすべて見る
-                  </button>
                 </Card>
               </section>
             )}
@@ -818,6 +788,36 @@ function App() {
                     <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
                   </div>
                 </Card>
+
+                <Card title="当月の履歴" subtitle="計算に含まれる明細">
+                  <div className="list">
+                    {items.length === 0 && <p className="muted">当月のデータがありません</p>}
+                    {items.map((item) => (
+                      <div key={item.id} className="list-item">
+                        <div>
+                          <p className="label">
+                            {item.date || '-'} / {typeLabel(item.item_type)}
+                            {isRecurrentItem(item) && <span className="chip muted" style={{ marginLeft: 8 }}>固定費</span>}
+                          </p>
+                          <p className="muted">{item.note || '-'}</p>
+                        </div>
+                        <div className="list-actions">
+                          <span className="amount">{item.amount.toLocaleString()}円</span>
+                          <button
+                            className="ghost danger-text"
+                            onClick={() => handleDeleteItem(item.id)}
+                            disabled={busy}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button className="ghost small" onClick={() => setScreen('history')}>
+                    履歴をすべて見る
+                  </button>
+                </Card>
               </div>
             )}
 
@@ -920,6 +920,7 @@ function App() {
                         <div>
                           <p className="label">
                             {item.date || '-'} / {typeLabel(item.item_type)}
+                            {isRecurrentItem(item) && <span className="chip muted" style={{ marginLeft: 8 }}>固定費</span>}
                           </p>
                           <p className="muted">{item.note || '-'}</p>
                         </div>
@@ -1174,11 +1175,6 @@ function BalanceChart({ data }: { data: BalanceHistoryItem[] }) {
       </svg>
     </div>
   )
-}
-
-function progressPercent(target: number, actual: number) {
-  if (!Number.isFinite(target) || target <= 0) return 0
-  return Math.min(999, Math.round((actual / target) * 100))
 }
 
 function apiBasePresent() {
