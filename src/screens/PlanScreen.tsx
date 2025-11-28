@@ -96,19 +96,21 @@ export function PlanScreen({
 
       <Card title="当月の履歴" subtitle="計算に含まれる明細">
         <div className="list">
-          {items.length === 0 && <p className="muted">当月のデータがありません</p>}
-          {items.map((item) => (
-            <div key={item.id} className="list-item">
-              <div>
-                <p className="label">
-                  {item.date || '-'} / {typeLabel(item.item_type)}
-                  {isRecurrentItem(item) && <span className="chip muted" style={{ marginLeft: 8 }}>固定費</span>}
-                </p>
-                <p className="muted">{item.note || '-'}</p>
-              </div>
-              <div className="list-actions">
-                <span className="amount">{item.amount.toLocaleString()}円</span>
-                {!isRecurrentItem(item) ? (
+              {items.length === 0 && <p className="muted">当月のデータがありません</p>}
+              {items.map((item) => (
+                <div key={item.id} className="list-item">
+                  <div>
+                    <p className="label">
+                      {isRecurrentItem(item) && <span className="chip chip-small muted">固定費</span>}
+                      <span className="label-title">
+                        {item.date || '-'} / {typeLabel(item.item_type)}
+                      </span>
+                    </p>
+                    <p className="muted">{item.note || '-'}</p>
+                  </div>
+                  <div className="list-actions">
+                    <span className="amount">{item.amount.toLocaleString()}円</span>
+                    {!isRecurrentItem(item) ? (
                   <button className="ghost danger-text" onClick={() => onDeleteItem(item.id)} disabled={busy}>
                     削除
                   </button>

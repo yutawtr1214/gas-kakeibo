@@ -19,8 +19,10 @@ export function HistoryScreen({ items, busy, typeLabel, isRecurrentItem, onDelet
             <div key={item.id} className="list-item">
               <div>
                 <p className="label">
-                  {item.date || '-'} / {typeLabel(item.item_type)}
-                  {isRecurrentItem(item) && <span className="chip muted" style={{ marginLeft: 8 }}>固定費</span>}
+                  {isRecurrentItem(item) && <span className="chip chip-small muted">固定費</span>}
+                  <span className="label-title">
+                    {item.date || '-'} / {typeLabel(item.item_type)}
+                  </span>
                 </p>
                 <p className="muted">{item.note || '-'}</p>
               </div>

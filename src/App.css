@@ -313,8 +313,21 @@ button:disabled {
 }
 
 .label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  min-width: 0;
   font-weight: 700;
   color: #e2e8f0;
+}
+
+.label-title {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .list-actions {
@@ -326,6 +339,18 @@ button:disabled {
 
 .amount {
   font-weight: 800;
+}
+
+.chip {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chip-small {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border-width: 1px;
 }
 
 .toast {
