@@ -2,7 +2,6 @@ import type { BalanceHistoryItem, Summary, TransfersResult } from '../lib/api/ty
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
 import { MiniBalanceChart } from '../components/BalanceChart'
-import { AlertBanner } from '../components/AlertBanner'
 
 type Props = {
   summary: Summary
@@ -14,38 +13,46 @@ type Props = {
 }
 
 export function HomeScreen({
-  summary,
-  transfersSummary,
-  sharedSpending,
-  sharedBalance,
+  summary: _summary,
+  transfersSummary: _transfersSummary,
+  sharedSpending: _sharedSpending,
+  sharedBalance: _sharedBalance,
   balanceHistory,
   onGoShared,
 }: Props) {
+  const hasHistory = balanceHistory.length > 0
+  const totalBalanceDiff = hasHistory
+    ? balanceHistory.reduce((sum, h) => sum + (h.transfers - h.spending), 0)
+    : 0
+  const monthCount = hasHistory ? balanceHistory.length : 1
+  const averageBalanceDiff = Math.floor(totalBalanceDiff / monthCount)
+  const periodLabel = hasHistory
+    ? `${balanceHistory[0].year}/${balanceHistory[0].month} 〜 ${balanceHistory[balanceHistory.length - 1].year}/${balanceHistory[balanceHistory.length - 1].month}`
+    : 'データなし'
+
   return (
     <section className="stack">
-      <Card title="共有口座の現在地" subtitle="残高と今月の差分を確認" highlight>
+      <Card title="累計・平均収支" subtitle="開始からの合計と月平均" highlight>
         <div className="summary-grid">
-          <SummaryRow label="今月の実績振込（合計）" value={transfersSummary.total || 0} />
-          <SummaryRow label="今月支出（共通口座）" value={sharedSpending} sign="-" />
-          <SummaryRow label="現在残高" value={sharedBalance} />
+          <SummaryRow label="累計収支" value={totalBalanceDiff} />
+          <SummaryRow label="月平均収支（切り捨て）" value={averageBalanceDiff} />
+          <div className="summary-row">
+            <span className="summary-label">集計期間</span>
+            <span className="summary-value">{periodLabel}</span>
+          </div>
         </div>
-        <div className="actions" style={{ marginTop: '12px' }}>
-          <button className="ghost" onClick={onGoShared}>
-            共有の詳細へ
-          </button>
-        </div>
+        {hasHistory && (
+          <div className="actions" style={{ marginTop: '12px' }}>
+            <button className="ghost" onClick={onGoShared}>
+              共有の詳細へ
+            </button>
+          </div>
+        )}
       </Card>
 
       <Card title="収支の推移" subtitle="直近6ヶ月">
         <MiniBalanceChart data={balanceHistory} />
       </Card>
-
-      <AlertBanner
-        recommended={summary.recommended_transfer}
-        transferred={transfersSummary.total}
-        balance={sharedBalance}
-        onAction={onGoShared}
-      />
     </section>
   )
 }
