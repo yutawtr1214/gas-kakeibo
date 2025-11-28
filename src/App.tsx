@@ -12,6 +12,14 @@ import type {
   Settings,
 } from './lib/api/types'
 import { BottomNav } from './components/BottomNav'
+import {
+  CalculatorIcon,
+  ClockIcon,
+  HandshakeIcon,
+  HomeIcon,
+  LockIcon,
+  PencilIcon,
+} from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
 import { InputScreen } from './screens/InputScreen'
 import { PlanScreen } from './screens/PlanScreen'
@@ -22,19 +30,20 @@ import { SettingsModal } from './components/SettingsModal'
 import { Modal } from './components/Modal'
 
 type Screen = 'home' | 'input' | 'fixed' | 'shared' | 'history' | 'plan'
+type Tab = { key: Screen; label: string; icon: React.ReactNode }
 
 const defaultMembers = [
   { id: 'husband', label: '夫' },
   { id: 'wife', label: '妻' },
 ]
 
-const tabs: { key: Screen; label: string }[] = [
-  { key: 'home', label: 'ホーム' },
-  { key: 'plan', label: '振込計算' },
-  { key: 'input', label: '入力' },
-  { key: 'fixed', label: '固定費' },
-  { key: 'shared', label: '共有' },
-  { key: 'history', label: '履歴' },
+const tabs: Tab[] = [
+  { key: 'home', label: 'ホーム', icon: <HomeIcon /> },
+  { key: 'plan', label: '振込計算', icon: <CalculatorIcon /> },
+  { key: 'input', label: '入力', icon: <PencilIcon /> },
+  { key: 'fixed', label: '固定費', icon: <LockIcon /> },
+  { key: 'shared', label: '共有', icon: <HandshakeIcon /> },
+  { key: 'history', label: '履歴', icon: <ClockIcon /> },
 ]
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
