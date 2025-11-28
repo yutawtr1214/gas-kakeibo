@@ -128,8 +128,9 @@ function App() {
     }, 0)
   }, [members, summariesByMember, memberId, summary.recommended_transfer])
 
-  // 日付入力に基づき year/month を同期し、二重入力を解消
+  // 日付入力に基づき year/month を同期（入力タブ表示時のみ）
   useEffect(() => {
+    if (screen !== 'input') return
     if (!eventForm.date) return
     const [yStr, mStr] = eventForm.date.split('-')
     const yNum = Number(yStr)
@@ -138,7 +139,7 @@ function App() {
       if (yNum !== year) setYear(yNum)
       if (mNum !== month) setMonth(mNum)
     }
-  }, [eventForm.date, year, month])
+  }, [screen, eventForm.date, year, month])
 
   // ルートをハッシュで同期し、Pages 直リンクにも耐える
   useEffect(() => {
