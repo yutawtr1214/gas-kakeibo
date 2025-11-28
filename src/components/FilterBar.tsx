@@ -5,6 +5,7 @@ type Props = {
   setMemberId?: (id: string) => void
   members?: Member[]
   showMembers?: boolean
+  showPeriod?: boolean
   year: number
   setYear: (y: number) => void
   month: number
@@ -18,6 +19,7 @@ export function FilterBar({
   setMemberId,
   members,
   showMembers = true,
+  showPeriod = true,
   year,
   setYear,
   month,
@@ -41,19 +43,21 @@ export function FilterBar({
           ))}
         </div>
       )}
-      <div className="period">
-        <input type="number" value={year} min={2000} onChange={(e) => setYear(Number(e.target.value))} />
-        <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>
-              {m}月
-            </option>
-          ))}
-        </select>
-        <button className="ghost small" onClick={onReload} disabled={busy}>
-          再読込
-        </button>
-      </div>
+      {showPeriod && (
+        <div className="period">
+          <input type="number" value={year} min={2000} onChange={(e) => setYear(Number(e.target.value))} />
+          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <option key={m} value={m}>
+                {m}月
+              </option>
+            ))}
+          </select>
+          <button className="ghost small" onClick={onReload} disabled={busy}>
+            再読込
+          </button>
+        </div>
+      )}
     </div>
   )
 }

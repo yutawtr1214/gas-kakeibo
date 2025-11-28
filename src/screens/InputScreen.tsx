@@ -59,6 +59,7 @@ export function InputScreen({
         setMemberId={setMemberId}
         members={members}
         showMembers
+        showPeriod={false}
         year={year}
         setYear={setYear}
         month={month}

@@ -350,6 +350,35 @@ button:disabled {
   color: #fecdd3;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 12, 24, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 30;
+}
+
+.modal {
+  width: min(420px, 100%);
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.5);
+}
+
+.modal.success {
+  border-color: rgba(74, 222, 128, 0.55);
+}
+
+.modal.error {
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
 .bottom-nav {
   position: fixed;
   bottom: 0;

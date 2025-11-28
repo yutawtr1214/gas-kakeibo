@@ -19,6 +19,7 @@ import { FixedScreen } from './screens/FixedScreen'
 import { SharedScreen } from './screens/SharedScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { SettingsModal } from './components/SettingsModal'
+import { Modal } from './components/Modal'
 
 type Screen = 'home' | 'input' | 'fixed' | 'shared' | 'history' | 'plan'
 
@@ -82,6 +83,7 @@ function App() {
 
   const [items, setItems] = useState<Item[]>([])
   const [summary, setSummary] = useState<Summary>(initialSummary)
+  const [summariesByMember, setSummariesByMember] = useState<Record<string, Summary>>({})
   const [recurrents, setRecurrents] = useState<Recurrent[]>([])
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [transfersSummary, setTransfersSummary] = useState<TransfersResult>({ by_member: {}, total: 0 })
@@ -94,7 +96,7 @@ function App() {
 
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
+  const [modal, setModal] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
 
   const [eventForm, setEventForm] = useState({
     date: formatDateInput(today),
@@ -118,6 +120,25 @@ function App() {
     amount: '',
     note: '',
   })
+
+  const recommendedTransferTotal = useMemo(() => {
+    return members.reduce((sum, m) => {
+      const fallback = m.id === memberId ? summary.recommended_transfer : 0
+      return sum + (summariesByMember[m.id]?.recommended_transfer ?? fallback)
+    }, 0)
+  }, [members, summariesByMember, memberId, summary.recommended_transfer])
+
+  // 日付入力に基づき year/month を同期し、二重入力を解消
+  useEffect(() => {
+    if (!eventForm.date) return
+    const [yStr, mStr] = eventForm.date.split('-')
+    const yNum = Number(yStr)
+    const mNum = Number(mStr)
+    if (Number.isInteger(yNum) && Number.isInteger(mNum)) {
+      if (yNum !== year) setYear(yNum)
+      if (mNum !== month) setMonth(mNum)
+    }
+  }, [eventForm.date, year, month])
 
   // ルートをハッシュで同期し、Pages 直リンクにも耐える
   useEffect(() => {
@@ -166,11 +187,11 @@ function App() {
   }
 
   function showError(message: string) {
-    setToast({ type: 'error', message })
+    setModal({ type: 'error', message })
   }
 
   function showSuccess(message: string) {
-    setToast({ type: 'success', message })
+    setModal({ type: 'success', message })
   }
 
   function parseAmount(raw: string | number, label: string, allowZero = false) {
@@ -259,12 +280,31 @@ function App() {
     try {
       const result = await api.overview({ token, member_id: memberId, year, month })
       if (result.status === 'ok' && result.data) {
-        setItems(result.data.items)
-        setSummary(result.data.summary)
-        setTransfers(result.data.transfer_items || [])
-        setTransfersSummary(result.data.transfers || { by_member: {}, total: 0 })
-        setSharedSpending(result.data.shared_spending || 0)
-        setSharedBalance(result.data.shared_balance || 0)
+        const data = result.data
+        setItems(data.items)
+        setSummary(data.summary)
+        setSummariesByMember((prev) => ({ ...prev, [memberId]: data.summary }))
+        setTransfers(data.transfer_items || [])
+        setTransfersSummary(data.transfers || { by_member: {}, total: 0 })
+        setSharedSpending(data.shared_spending || 0)
+        setSharedBalance(data.shared_balance || 0)
+        const otherMembers = members.filter((m) => m.id !== memberId)
+        if (otherMembers.length) {
+          // 他のメンバー分の必要振込額も取得して合算表示に備える
+          await Promise.all(
+            otherMembers.map(async (m) => {
+              try {
+                const res = await api.overview({ token, member_id: m.id, year, month })
+                if (res.status === 'ok' && res.data) {
+                  const otherData = res.data
+                  setSummariesByMember((prev) => ({ ...prev, [m.id]: otherData.summary }))
+                }
+              } catch {
+                // 合算表示のみで使うため、失敗しても致命的ではない
+              }
+            }),
+          )
+        }
       } else {
         showError(result.message || 'データ取得に失敗しました')
       }
@@ -551,13 +591,8 @@ function App() {
       ) : (
         <>
           <main className="content">
-            {toast && (
-              <div className={`toast ${toast.type}`}>
-                {toast.message}
-                <button className="ghost small" onClick={() => setToast(null)}>
-                  閉じる
-                </button>
-              </div>
+            {modal && (
+              <Modal open type={modal.type} message={modal.message} onClose={() => setModal(null)} />
             )}
 
             {screen === 'home' && (
@@ -594,6 +629,12 @@ function App() {
             {screen === 'fixed' && (
               <FixedScreen
                 members={members}
+                memberId={memberId}
+                setMemberId={setMemberId}
+                year={year}
+                setYear={setYear}
+                month={month}
+                setMonth={setMonth}
                 itemTypeOptions={itemTypeOptions}
                 recurrentForm={recurrentForm}
                 setRecurrentForm={setRecurrentForm}
@@ -616,6 +657,7 @@ function App() {
                 onEdit={(r) => setEditingRecurrent(r)}
                 editing={editingRecurrent}
                 onUpdate={handleUpdateRecurrent}
+                onReload={loadRecurrents}
               />
             )}
 
@@ -632,7 +674,6 @@ function App() {
                 loading={loading}
                 summary={summary}
                 transfersSummary={transfersSummary}
-                sharedSpending={sharedSpending}
                 items={items}
                 typeLabel={typeLabel}
                 isRecurrentItem={isRecurrentItem}
@@ -653,7 +694,7 @@ function App() {
                 setMonth={setMonth}
                 busy={busy}
                 loading={loading}
-                summary={summary}
+                recommendedTransferTotal={recommendedTransferTotal}
                 transfersSummary={transfersSummary}
                 sharedSpending={sharedSpending}
                 sharedBalance={sharedBalance}

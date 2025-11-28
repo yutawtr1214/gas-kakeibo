@@ -1,4 +1,4 @@
-import type { BalanceHistoryItem, Summary, Transfer, TransfersResult } from '../lib/api/types'
+import type { BalanceHistoryItem, Transfer, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
 import { BalanceChart } from '../components/BalanceChart'
@@ -14,7 +14,7 @@ type Props = {
   setMonth: (m: number) => void
   busy: boolean
   loading: boolean
-  summary: Summary
+  recommendedTransferTotal: number
   transfersSummary: TransfersResult
   sharedSpending: number
   sharedBalance: number
@@ -35,7 +35,7 @@ export function SharedScreen({
   setMonth,
   busy,
   loading,
-  summary,
+  recommendedTransferTotal,
   transfersSummary,
   sharedSpending,
   sharedBalance,
@@ -60,7 +60,7 @@ export function SharedScreen({
       />
       <Card title="共通口座サマリ" subtitle="必要額・実績・支出">
         <div className="summary-grid">
-          <SummaryRow label="必要振込額" value={summary.recommended_transfer} />
+          <SummaryRow label="必要振込額（夫婦合計）" value={recommendedTransferTotal} />
           <SummaryRow label="実績振込（合計）" value={transfersSummary.total || 0} />
           <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
           <SummaryRow label="口座収支" value={sharedBalance} />

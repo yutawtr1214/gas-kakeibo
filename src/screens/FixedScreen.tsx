@@ -1,6 +1,7 @@
 import React from 'react'
 import type { ItemType, Recurrent } from '../lib/api/types'
 import { Card } from '../components/Card'
+import { FilterBar } from '../components/FilterBar'
 
 type Member = { id: string; label: string }
 
@@ -17,6 +18,12 @@ type RecurrentFormState = {
 
 type Props = {
   members: Member[]
+  memberId: string
+  setMemberId: (id: string) => void
+  year: number
+  setYear: (y: number) => void
+  month: number
+  setMonth: (m: number) => void
   itemTypeOptions: { value: ItemType; label: string }[]
   recurrentForm: RecurrentFormState
   setRecurrentForm: React.Dispatch<React.SetStateAction<RecurrentFormState>>
@@ -28,10 +35,17 @@ type Props = {
   onEdit: (r: Recurrent | null) => void
   editing: Recurrent | null
   onUpdate: (payload: { id: string; start_y: number; start_m: number; end_y: string | number | null; end_m: string | number | null }) => void
+  onReload: () => void
 }
 
 export function FixedScreen({
   members,
+  memberId,
+  setMemberId,
+  year,
+  setYear,
+  month,
+  setMonth,
   itemTypeOptions,
   recurrentForm,
   setRecurrentForm,
@@ -43,6 +57,7 @@ export function FixedScreen({
   onEdit,
   editing,
   onUpdate,
+  onReload,
 }: Props) {
   const [editState, setEditState] = React.useState({
     start_y: editing?.start_y || new Date().getFullYear(),
@@ -50,6 +65,11 @@ export function FixedScreen({
     end_y: editing?.end_y ? String(editing.end_y) : '',
     end_m: editing?.end_m ? String(editing.end_m) : '',
   })
+
+  // メンバー選択を入力タブと同様のチップで統一し、登録者に反映
+  React.useEffect(() => {
+    setRecurrentForm((prev) => ({ ...prev, member_id: memberId }))
+  }, [memberId, setRecurrentForm])
 
   React.useEffect(() => {
     if (editing) {
@@ -75,22 +95,23 @@ export function FixedScreen({
   }
 
   return (
-    <div className="grid">
+    <div className="stack">
+      <FilterBar
+        memberId={memberId}
+        setMemberId={setMemberId}
+        members={members}
+        showMembers
+        showPeriod={false}
+        year={year}
+        setYear={setYear}
+        month={month}
+        setMonth={setMonth}
+        onReload={onReload}
+        busy={busy}
+      />
+      <div className="grid">
       <Card title="固定費を登録" subtitle="毎月発生する支出を先に登録">
         <form className="form" onSubmit={onSubmit}>
-          <label>
-            登録者
-            <select
-              value={recurrentForm.member_id}
-              onChange={(e) => setRecurrentForm({ ...recurrentForm, member_id: e.target.value })}
-            >
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
           <label>
             種別
             <select
@@ -285,6 +306,7 @@ export function FixedScreen({
           </form>
         </Card>
       )}
+      </div>
     </div>
   )
 }

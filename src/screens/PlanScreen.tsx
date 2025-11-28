@@ -17,7 +17,6 @@ type Props = {
   loading: boolean
   summary: Summary
   transfersSummary: TransfersResult
-  sharedSpending: number
   items: Item[]
   typeLabel: (t: ItemType) => string
   isRecurrentItem: (item: Item) => boolean
@@ -40,7 +39,6 @@ export function PlanScreen({
   loading,
   summary,
   transfersSummary,
-  sharedSpending,
   items,
   typeLabel,
   isRecurrentItem,
@@ -93,7 +91,6 @@ export function PlanScreen({
           <SummaryRow label="個人口座で立て替え" value={summary.shared_from_personal_total} sign="-" />
           <SummaryRow label="共有口座から前借り" value={summary.personal_from_shared_total} sign="+" />
           <SummaryRow label="お小遣い合計" value={summary.pocket_total} sign="-" />
-          <SummaryRow label="共通口座支出" value={sharedSpending} sign="-" />
         </div>
       </Card>
 
