@@ -31,4 +31,4 @@ dist-ssr
 .clasp.json
 
 # for AI Agents
-.serena/*
+.serena
