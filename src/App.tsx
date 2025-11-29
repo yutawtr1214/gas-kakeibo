@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { api } from './lib/api/client'
 import type {
@@ -19,6 +19,7 @@ import {
   HomeIcon,
   LockIcon,
   PencilIcon,
+  HamburgerIcon,
 } from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
 import { InputScreen } from './screens/InputScreen'
@@ -102,6 +103,8 @@ function App() {
   const [settingsForm, setSettingsForm] = useState({ husband_name: '', wife_name: '' })
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [editingRecurrent, setEditingRecurrent] = useState<Recurrent | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -169,6 +172,29 @@ function App() {
   useEffect(() => {
     window.location.hash = `#/${screen}`
   }, [screen])
+
+  useEffect(() => {
+    if (!loggedIn) {
+      setMenuOpen(false)
+    }
+  }, [loggedIn])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('click', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   // ログイン後データ読み込み
   useEffect(() => {
@@ -562,18 +588,44 @@ function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">共有家計簿</p>
-          <h1>月次キャッシュフロー</h1>
-        </div>
+        <h1>夫婦の家計簿</h1>
         {loggedIn && (
-          <div className="inline" style={{ gap: 8 }}>
-            <button className="ghost small" onClick={() => setSettingsModalOpen(true)}>
-              設定
+          <div className="menu-wrapper" ref={menuRef}>
+            <button
+              className="icon-btn"
+              type="button"
+              aria-label="メニュー"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <HamburgerIcon width={22} height={22} />
             </button>
-            <button className="ghost small" onClick={handleLogout}>
-              ログアウト
-            </button>
+            {menuOpen && (
+              <div className="menu-dropdown" role="menu">
+                <button
+                  className="menu-item"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setSettingsModalOpen(true)
+                    setMenuOpen(false)
+                  }}
+                >
+                  設定
+                </button>
+                <button
+                  className="menu-item"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    handleLogout()
+                  }}
+                >
+                  ログアウト
+                </button>
+              </div>
+            )}
           </div>
         )}
       </header>
