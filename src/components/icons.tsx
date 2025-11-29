@@ -71,3 +71,11 @@ export function HamburgerIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function BirdIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none" {...props}>
+      <path d="M21.54 6.18c.01.18.01.37.01.55 0 5.61-4.27 12.08-12.08 12.08-2.4 0-4.63-.7-6.51-1.91a8.53 8.53 0 0 0 6.28-1.76 4.27 4.27 0 0 1-3.98-2.96c.64.1 1.22.1 1.9-.08a4.26 4.26 0 0 1-3.42-4.18v-.06c.57.32 1.23.51 1.93.53a4.25 4.25 0 0 1-1.9-3.54c0-.79.22-1.48.6-2.1a12.09 12.09 0 0 0 8.77 4.45 4.26 4.26 0 0 1 7.26-3.88 8.4 8.4 0 0 0 2.7-1.03 4.24 4.24 0 0 1-1.87 2.35 8.49 8.49 0 0 0 2.45-.67 9.1 9.1 0 0 1-2.14 2.28Z" />
+    </svg>
+  )
+}

@@ -20,6 +20,7 @@ import {
   LockIcon,
   PencilIcon,
   HamburgerIcon,
+  BirdIcon,
 } from './components/icons'
 const HomeScreen = lazy(() => import('./screens/HomeScreen').then((m) => ({ default: m.HomeScreen })))
 const InputScreen = lazy(() => import('./screens/InputScreen').then((m) => ({ default: m.InputScreen })))
@@ -588,7 +589,10 @@ function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>夫婦の家計簿</h1>
+        <div className="brand">
+          <BirdIcon className="brand-icon" width={28} height={28} />
+          <h1>夫婦の家計簿</h1>
+        </div>
         {loggedIn && (
           <div className="menu-wrapper" ref={menuRef}>
             <button

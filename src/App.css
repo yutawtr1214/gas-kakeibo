@@ -55,6 +55,18 @@ p {
   color: #0f1419;
 }
 
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(1px);
+}
+
+.brand-icon {
+  color: #1d9bf0;
+  display: inline-block;
+}
+
 .icon-btn {
   display: inline-flex;
   align-items: center;
