@@ -297,8 +297,8 @@ function App() {
 
   function applySettings(data: Settings) {
     const nextMembers = [
-      { id: 'husband', label: data.husband_name || '夫' },
-      { id: 'wife', label: data.wife_name || '妻' },
+      { id: 'husband', label: data.husband_name || '夫', avatar: '' },
+      { id: 'wife', label: data.wife_name || '妻', avatar: '' },
     ]
     setMembers(nextMembers)
     if (!nextMembers.find((m) => m.id === memberId)) {
@@ -310,11 +310,7 @@ function App() {
       husband_image_id: data.husband_image_id || '',
       wife_image_id: data.wife_image_id || '',
     })
-    setProfilePreview((p) => ({
-      ...p,
-      husband: '',
-      wife: '',
-    }))
+    setProfilePreview({ husband: '', wife: '' })
     if (data.husband_image_id) fetchProfileImage(data.husband_image_id, 'husband')
     if (data.wife_image_id) fetchProfileImage(data.wife_image_id, 'wife')
   }
@@ -391,7 +387,11 @@ function App() {
     try {
       const result = await api.profileImageGet({ token, file_id: fileId })
       if (result.status === 'ok' && result.data?.data_url) {
-        setProfilePreview((p) => ({ ...p, [member]: result.data?.data_url || '' }))
+        const url = result.data?.data_url || ''
+        setProfilePreview((p) => ({ ...p, [member]: url }))
+        setMembers((prev) =>
+          prev.map((m) => (m.id === member ? { ...m, avatar: url } : m)),
+        )
       }
     } catch {
       // 取得失敗は無視（画像なし扱い）
@@ -630,6 +630,9 @@ function App() {
             wife_image_id: member === 'wife' ? result.data!.file_id : p.wife_image_id,
           }))
           setProfilePreview((p) => ({ ...p, [member]: dataUrl }))
+          setMembers((prev) =>
+            prev.map((m) => (m.id === member ? { ...m, avatar: dataUrl } : m)),
+          )
           showSuccess('画像をアップロードしました')
         } else {
           showError(result.message || '画像のアップロードに失敗しました')

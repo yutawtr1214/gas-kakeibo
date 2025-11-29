@@ -2,9 +2,10 @@ import React from 'react'
 import type { ItemType, Recurrent } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { FilterBar } from '../components/FilterBar'
+import { TweetCard } from '../components/TweetCard'
 import { PencilIcon, TrashIcon } from '../components/icons'
 
-type Member = { id: string; label: string }
+type Member = { id: string; label: string; avatar?: string }
 
 type RecurrentFormState = {
   member_id: string
@@ -216,34 +217,34 @@ export function FixedScreen({
           {recurrents.length === 0 && <p className="muted">登録された固定費はありません</p>}
           {recurrents.map((r) => (
             <div key={r.id}>
-              <div className="list-item list-item--with-actions">
-                <div>
-                  <p className="label">{itemTypeOptions.find((i) => i.value === r.item_type)?.label || r.item_type}</p>
-                  <p className="muted">登録者: {members.find((m) => m.id === r.member_id)?.label || r.member_id}</p>
-                  <p className="muted">
-                    {r.start_y}/{r.start_m} 〜 {r.end_y && r.end_m ? `${r.end_y}/${r.end_m}` : '継続'}
-                  </p>
-                  <p className="muted">{r.note || '-'}</p>
-                </div>
-                <div className="list-actions list-actions--split">
-                  <span className="amount">{r.amount.toLocaleString()}円</span>
-                  <div className="action-row action-row--right">
-                    <button className="action-btn edit" type="button" onClick={() => onEdit(r)} disabled={busy}>
-                      <PencilIcon width={18} height={18} />
-                      <span>編集</span>
-                    </button>
-                    <button
-                      className="action-btn delete"
-                      type="button"
-                      onClick={() => onDelete(r.id, r.member_id)}
-                      disabled={busy}
-                    >
-                      <TrashIcon width={18} height={18} />
-                      <span>削除</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <TweetCard
+                members={members}
+                memberId={r.member_id}
+                name={members.find((m) => m.id === r.member_id)?.label || r.member_id}
+                handle={r.member_id}
+                headline={itemTypeOptions.find((i) => i.value === r.item_type)?.label || r.item_type}
+                meta={`${r.start_y}/${r.start_m} 〜 ${r.end_y && r.end_m ? `${r.end_y}/${r.end_m}` : '継続'}`}
+                body={r.note || ''}
+                amountLabel={`${r.amount.toLocaleString()}円`}
+                actions={[
+                  {
+                    key: 'edit',
+                    label: '編集',
+                    icon: <PencilIcon width={18} height={18} />,
+                    onClick: () => onEdit(r),
+                    tone: 'primary',
+                    disabled: busy,
+                  },
+                  {
+                    key: 'delete',
+                    label: '削除',
+                    icon: <TrashIcon width={18} height={18} />,
+                    onClick: () => onDelete(r.id, r.member_id),
+                    tone: 'danger',
+                    disabled: busy,
+                  },
+                ]}
+              />
             </div>
           ))}
         </div>

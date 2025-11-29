@@ -2,9 +2,10 @@ import type { Item, ItemType, Summary, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
 import { FilterBar } from '../components/FilterBar'
+import { TweetCard } from '../components/TweetCard'
 import { TrashIcon } from '../components/icons'
 
-type Member = { id: string; label: string }
+type Member = { id: string; label: string; avatar?: string }
 
 type Props = {
   members: Member[]
@@ -93,43 +94,38 @@ export function PlanScreen({
         </div>
       </Card>
 
-      <Card title="当月の履歴" subtitle="計算に含まれる明細（全件表示）">
-        <div className="list">
-              {items.length === 0 && <p className="muted">当月のデータがありません</p>}
-              {items.map((item) => (
-                <div key={item.id}>
-                  <div className="list-item list-item--with-actions">
-                    <div>
-                      <p className="label">
-                        {isRecurrentItem(item) && <span className="chip chip-small muted">固定費</span>}
-                        <span className="label-title">
-                          {item.date || '-'} / {typeLabel(item.item_type)}
-                        </span>
-                      </p>
-                      <p className="muted">{item.note || '-'}</p>
-                    </div>
-                    <div className="list-actions list-actions--split">
-                      <span className="amount">{item.amount.toLocaleString()}円</span>
-                      {!isRecurrentItem(item) ? (
-                        <div className="action-row action-row--right">
-                          <button className="action-btn delete" type="button" onClick={() => onDeleteItem(item.id)} disabled={busy}>
-                            <TrashIcon width={18} height={18} />
-                            <span>削除</span>
-                          </button>
+              <Card title="当月の履歴" subtitle="計算に含まれる明細（全件表示）">
+                <div className="list">
+                      {items.length === 0 && <p className="muted">当月のデータがありません</p>}
+                      {items.map((item) => (
+                        <div key={item.id}>
+                          <TweetCard
+                            members={members}
+                            memberId={item.member_id}
+                            name={members.find((m) => m.id === item.member_id)?.label || item.member_id}
+                            handle={item.member_id}
+                            headline={`${item.date || '-'} / ${typeLabel(item.item_type)}`}
+                            body={item.note || ''}
+                            amountLabel={`${item.amount.toLocaleString()}円`}
+                            actions={
+                              !isRecurrentItem(item)
+                                ? [
+                                    {
+                                      key: 'delete',
+                                      label: '削除',
+                                      icon: <TrashIcon width={18} height={18} />,
+                                      onClick: () => onDeleteItem(item.id),
+                                      tone: 'danger',
+                                      disabled: busy,
+                                    },
+                                  ]
+                                : []
+                            }
+                          />
                         </div>
-                      ) : (
-                        <div className="action-row action-row--right">
-                          <span className="muted" style={{ fontSize: 12 }}>
-                            固定費は固定費タブで編集
-                          </span>
-                        </div>
-                      )}
+                      ))}
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-      </Card>
+              </Card>
     </div>
   )
 }
