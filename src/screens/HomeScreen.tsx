@@ -1,7 +1,11 @@
+import { lazy, Suspense } from 'react'
 import type { BalanceHistoryItem, Summary, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
-import { MiniBalanceChart } from '../components/BalanceChart'
+
+const MiniBalanceChart = lazy(async () =>
+  import('../components/BalanceChart').then((m) => ({ default: m.MiniBalanceChart })),
+)
 
 type Props = {
   summary: Summary
@@ -51,7 +55,9 @@ export function HomeScreen({
       </Card>
 
       <Card title="収支の推移">
-        <MiniBalanceChart data={balanceHistory} />
+        <Suspense fallback={<div className="muted">チャートを読み込み中…</div>}>
+          <MiniBalanceChart data={balanceHistory} />
+        </Suspense>
       </Card>
     </section>
   )

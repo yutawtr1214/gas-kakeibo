@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useRef, useState, lazy } from 'react'
 import './App.css'
 import { api } from './lib/api/client'
 import type {
@@ -21,12 +21,12 @@ import {
   PencilIcon,
   HamburgerIcon,
 } from './components/icons'
-import { HomeScreen } from './screens/HomeScreen'
-import { InputScreen } from './screens/InputScreen'
-import { PlanScreen } from './screens/PlanScreen'
-import { FixedScreen } from './screens/FixedScreen'
-import { SharedScreen } from './screens/SharedScreen'
-import { HistoryScreen } from './screens/HistoryScreen'
+const HomeScreen = lazy(() => import('./screens/HomeScreen').then((m) => ({ default: m.HomeScreen })))
+const InputScreen = lazy(() => import('./screens/InputScreen').then((m) => ({ default: m.InputScreen })))
+const PlanScreen = lazy(() => import('./screens/PlanScreen').then((m) => ({ default: m.PlanScreen })))
+const FixedScreen = lazy(() => import('./screens/FixedScreen').then((m) => ({ default: m.FixedScreen })))
+const SharedScreen = lazy(() => import('./screens/SharedScreen').then((m) => ({ default: m.SharedScreen })))
+const HistoryScreen = lazy(() => import('./screens/HistoryScreen').then((m) => ({ default: m.HistoryScreen })))
 import { SettingsModal } from './components/SettingsModal'
 import { Modal } from './components/Modal'
 
@@ -657,128 +657,130 @@ function App() {
               <Modal open type={modal.type} message={modal.message} onClose={() => setModal(null)} />
             )}
 
-            {screen === 'home' && (
-              <HomeScreen
-                summary={summary}
-                transfersSummary={transfersSummary}
-                sharedSpending={sharedSpending}
-                sharedBalance={sharedBalance}
-                balanceHistory={balanceHistory}
-                onGoShared={() => setScreen('shared')}
-              />
-            )}
+            <Suspense fallback={<div className="muted">画面を読み込み中…</div>}>
+              {screen === 'home' && (
+                <HomeScreen
+                  summary={summary}
+                  transfersSummary={transfersSummary}
+                  sharedSpending={sharedSpending}
+                  sharedBalance={sharedBalance}
+                  balanceHistory={balanceHistory}
+                  onGoShared={() => setScreen('shared')}
+                />
+              )}
 
-            {screen === 'input' && (
-              <InputScreen
-                members={members}
-                memberId={memberId}
-                setMemberId={setMemberId}
-                year={year}
-                setYear={setYear}
-                month={month}
-                setMonth={setMonth}
-                busy={busy}
-                loading={loading}
-                itemTypeOptions={itemTypeOptions}
-                eventForm={eventForm}
-                setEventForm={setEventForm}
-                onSubmit={handleAddItem}
-                onReset={() => setEventForm({ date: formatDateInput(today), item_type: '', amount: '', note: '' })}
-                onReload={loadOverview}
-              />
-            )}
+              {screen === 'input' && (
+                <InputScreen
+                  members={members}
+                  memberId={memberId}
+                  setMemberId={setMemberId}
+                  year={year}
+                  setYear={setYear}
+                  month={month}
+                  setMonth={setMonth}
+                  busy={busy}
+                  loading={loading}
+                  itemTypeOptions={itemTypeOptions}
+                  eventForm={eventForm}
+                  setEventForm={setEventForm}
+                  onSubmit={handleAddItem}
+                  onReset={() => setEventForm({ date: formatDateInput(today), item_type: '', amount: '', note: '' })}
+                  onReload={loadOverview}
+                />
+              )}
 
-            {screen === 'fixed' && (
-              <FixedScreen
-                members={members}
-                memberId={memberId}
-                setMemberId={setMemberId}
-                year={year}
-                setYear={setYear}
-                month={month}
-                setMonth={setMonth}
-                itemTypeOptions={itemTypeOptions}
-                recurrentForm={recurrentForm}
-                setRecurrentForm={setRecurrentForm}
-                recurrents={recurrents}
-                busy={busy}
-                onSubmit={handleAddRecurrent}
-                onReset={() =>
-                  setRecurrentForm({
-                    member_id: memberId,
-                    item_type: '',
-                    amount: '',
-                    note: '',
-                    start_y: year,
-                    start_m: month,
-                    end_y: '',
-                    end_m: '',
-                  })
-                }
-                onDelete={handleDeleteRecurrent}
-                onEdit={(r) => setEditingRecurrent(r)}
-                editing={editingRecurrent}
-                onUpdate={handleUpdateRecurrent}
-                onReload={loadRecurrents}
-              />
-            )}
+              {screen === 'fixed' && (
+                <FixedScreen
+                  members={members}
+                  memberId={memberId}
+                  setMemberId={setMemberId}
+                  year={year}
+                  setYear={setYear}
+                  month={month}
+                  setMonth={setMonth}
+                  itemTypeOptions={itemTypeOptions}
+                  recurrentForm={recurrentForm}
+                  setRecurrentForm={setRecurrentForm}
+                  recurrents={recurrents}
+                  busy={busy}
+                  onSubmit={handleAddRecurrent}
+                  onReset={() =>
+                    setRecurrentForm({
+                      member_id: memberId,
+                      item_type: '',
+                      amount: '',
+                      note: '',
+                      start_y: year,
+                      start_m: month,
+                      end_y: '',
+                      end_m: '',
+                    })
+                  }
+                  onDelete={handleDeleteRecurrent}
+                  onEdit={(r) => setEditingRecurrent(r)}
+                  editing={editingRecurrent}
+                  onUpdate={handleUpdateRecurrent}
+                  onReload={loadRecurrents}
+                />
+              )}
 
-            {screen === 'plan' && (
-              <PlanScreen
-                members={members}
-                memberId={memberId}
-                setMemberId={setMemberId}
-                year={year}
-                setYear={setYear}
-                month={month}
-                setMonth={setMonth}
-                busy={busy}
-                loading={loading}
-                summary={summary}
-                transfersSummary={transfersSummary}
-                items={items}
-                typeLabel={typeLabel}
-                isRecurrentItem={isRecurrentItem}
-                onReload={loadOverview}
-                onQuickTransfer={handleQuickTransfer}
-                onDeleteItem={handleDeleteItem}
-                onGoShared={() => setScreen('shared')}
-                onGoHistory={() => setScreen('history')}
-              />
-            )}
+              {screen === 'plan' && (
+                <PlanScreen
+                  members={members}
+                  memberId={memberId}
+                  setMemberId={setMemberId}
+                  year={year}
+                  setYear={setYear}
+                  month={month}
+                  setMonth={setMonth}
+                  busy={busy}
+                  loading={loading}
+                  summary={summary}
+                  transfersSummary={transfersSummary}
+                  items={items}
+                  typeLabel={typeLabel}
+                  isRecurrentItem={isRecurrentItem}
+                  onReload={loadOverview}
+                  onQuickTransfer={handleQuickTransfer}
+                  onDeleteItem={handleDeleteItem}
+                  onGoShared={() => setScreen('shared')}
+                  onGoHistory={() => setScreen('history')}
+                />
+              )}
 
-            {screen === 'shared' && (
-              <SharedScreen
-                members={members}
-                year={year}
-                setYear={setYear}
-                month={month}
-                setMonth={setMonth}
-                busy={busy}
-                loading={loading}
-                recommendedTransferTotal={recommendedTransferTotal}
-                transfersSummary={transfersSummary}
-                sharedSpending={sharedSpending}
-                sharedBalance={sharedBalance}
-                balanceHistory={balanceHistory}
-                transfers={transfers}
-                sharedForm={sharedForm}
-                setSharedForm={setSharedForm}
-                onReload={loadOverview}
-                onSubmitShared={handleSharedSpending}
-                onDeleteTransfer={handleDeleteTransfer}
-              />
-            )}
+              {screen === 'shared' && (
+                <SharedScreen
+                  members={members}
+                  year={year}
+                  setYear={setYear}
+                  month={month}
+                  setMonth={setMonth}
+                  busy={busy}
+                  loading={loading}
+                  recommendedTransferTotal={recommendedTransferTotal}
+                  transfersSummary={transfersSummary}
+                  sharedSpending={sharedSpending}
+                  sharedBalance={sharedBalance}
+                  balanceHistory={balanceHistory}
+                  transfers={transfers}
+                  sharedForm={sharedForm}
+                  setSharedForm={setSharedForm}
+                  onReload={loadOverview}
+                  onSubmitShared={handleSharedSpending}
+                  onDeleteTransfer={handleDeleteTransfer}
+                />
+              )}
 
-            {screen === 'history' && (
-              <HistoryScreen
-                items={items}
-                busy={busy}
-                typeLabel={typeLabel}
-                isRecurrentItem={isRecurrentItem}
-                onDeleteItem={handleDeleteItem}
-              />
-            )}
+              {screen === 'history' && (
+                <HistoryScreen
+                  items={items}
+                  busy={busy}
+                  typeLabel={typeLabel}
+                  isRecurrentItem={isRecurrentItem}
+                  onDeleteItem={handleDeleteItem}
+                />
+              )}
+            </Suspense>
           </main>
 
           <BottomNav active={screen} tabs={tabs} onChange={(key) => setScreen(key as Screen)} />

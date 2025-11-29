@@ -1,8 +1,12 @@
+import { lazy, Suspense } from 'react'
 import type { BalanceHistoryItem, Transfer, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
-import { BalanceChart } from '../components/BalanceChart'
 import { FilterBar } from '../components/FilterBar'
+
+const BalanceChart = lazy(async () =>
+  import('../components/BalanceChart').then((m) => ({ default: m.BalanceChart })),
+)
 
 type Member = { id: string; label: string }
 
@@ -121,7 +125,9 @@ export function SharedScreen({
       </Card>
 
       <Card title="共通口座 収支の推移" subtitle="入金-支出の差分を確認">
-        <BalanceChart data={balanceHistory} />
+        <Suspense fallback={<div className="muted">チャートを読み込み中…</div>}>
+          <BalanceChart data={balanceHistory} />
+        </Suspense>
       </Card>
     </div>
   )
