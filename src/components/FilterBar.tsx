@@ -1,4 +1,4 @@
-type Member = { id: string; label: string }
+type Member = { id: string; label: string; avatar?: string }
 
 type Props = {
   memberId?: string
@@ -34,11 +34,22 @@ export function FilterBar({
           {members.map((m) => (
             <button
               key={m.id}
-              className={`chip ${memberId === m.id ? 'is-active' : ''}`}
+              className={`chip chip--avatar ${memberId === m.id ? 'is-active' : ''}`}
               onClick={() => setMemberId(m.id)}
               type="button"
+              aria-pressed={memberId === m.id}
             >
-              {m.label}
+              <span className="chip-avatar-wrapper">
+                {m.avatar ? (
+                  <img src={m.avatar} alt="" className="chip-avatar" />
+                ) : (
+                  <span className="chip-avatar chip-avatar--placeholder">{m.label.slice(0, 1)}</span>
+                )}
+              </span>
+              <span className="chip-text">
+                <span className="chip-name">{m.label}</span>
+                <span className="chip-handle">@{m.id}</span>
+              </span>
             </button>
           ))}
         </div>

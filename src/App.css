@@ -157,16 +157,68 @@ p {
 
 .chip {
   border: 1px solid #e1e8ed;
-  background: #f5f8fa;
+  background: transparent;
   color: #0f1419;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.chip:hover {
+  background: rgba(83, 100, 113, 0.08);
 }
 
 .chip.is-active {
   border-color: #1da1f2;
   background: rgba(29, 161, 242, 0.12);
   color: #0d8ddf;
+}
+
+.chip--avatar .chip-avatar-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e5e7eb;
+}
+
+.chip-avatar--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 700;
+  border: 1px solid #cbd5e1;
+}
+
+.chip-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip-name {
+  font-weight: 700;
+  color: #0f1419;
+}
+
+.chip-handle {
+  color: #536471;
+  font-size: 13px;
 }
 
 .period {
