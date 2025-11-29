@@ -25,7 +25,6 @@ type Props = {
   onQuickTransfer: () => void
   onDeleteItem: (id: string) => void
   onGoShared: () => void
-  onGoHistory: () => void
 }
 
 export function PlanScreen({
@@ -47,7 +46,6 @@ export function PlanScreen({
   onQuickTransfer,
   onDeleteItem,
   onGoShared,
-  onGoHistory,
 }: Props) {
   return (
     <div className="stack">
@@ -95,7 +93,7 @@ export function PlanScreen({
         </div>
       </Card>
 
-      <Card title="当月の履歴" subtitle="計算に含まれる明細">
+      <Card title="当月の履歴" subtitle="計算に含まれる明細（全件表示）">
         <div className="list">
               {items.length === 0 && <p className="muted">当月のデータがありません</p>}
               {items.map((item) => (
@@ -131,9 +129,6 @@ export function PlanScreen({
                 </div>
               ))}
             </div>
-            <button className="ghost small" onClick={onGoHistory}>
-          履歴をすべて見る
-        </button>
       </Card>
     </div>
   )

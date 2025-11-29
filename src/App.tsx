@@ -12,26 +12,16 @@ import type {
   Settings,
 } from './lib/api/types'
 import { BottomNav } from './components/BottomNav'
-import {
-  CalculatorIcon,
-  ClockIcon,
-  HandshakeIcon,
-  HomeIcon,
-  LockIcon,
-  PencilIcon,
-  HamburgerIcon,
-  BirdIcon,
-} from './components/icons'
+import { CalculatorIcon, HandshakeIcon, HomeIcon, LockIcon, PencilIcon, HamburgerIcon, BirdIcon } from './components/icons'
 const HomeScreen = lazy(() => import('./screens/HomeScreen').then((m) => ({ default: m.HomeScreen })))
 const InputScreen = lazy(() => import('./screens/InputScreen').then((m) => ({ default: m.InputScreen })))
 const PlanScreen = lazy(() => import('./screens/PlanScreen').then((m) => ({ default: m.PlanScreen })))
 const FixedScreen = lazy(() => import('./screens/FixedScreen').then((m) => ({ default: m.FixedScreen })))
 const SharedScreen = lazy(() => import('./screens/SharedScreen').then((m) => ({ default: m.SharedScreen })))
-const HistoryScreen = lazy(() => import('./screens/HistoryScreen').then((m) => ({ default: m.HistoryScreen })))
 import { SettingsModal } from './components/SettingsModal'
 import { Modal } from './components/Modal'
 
-type Screen = 'home' | 'input' | 'fixed' | 'shared' | 'history' | 'plan'
+type Screen = 'home' | 'input' | 'fixed' | 'shared' | 'plan'
 type Tab = { key: Screen; label: string; icon: React.ReactNode }
 
 const defaultMembers = [
@@ -45,7 +35,6 @@ const tabs: Tab[] = [
   { key: 'input', label: '入力', icon: <PencilIcon /> },
   { key: 'fixed', label: '固定費', icon: <LockIcon /> },
   { key: 'shared', label: '共有', icon: <HandshakeIcon /> },
-  { key: 'history', label: '履歴', icon: <ClockIcon /> },
 ]
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
@@ -157,12 +146,12 @@ function App() {
   // ルートをハッシュで同期し、Pages 直リンクにも耐える
   useEffect(() => {
     const hash = window.location.hash.replace('#/', '')
-    if (hash === 'input' || hash === 'fixed' || hash === 'shared' || hash === 'history' || hash === 'home') {
+    if (hash === 'input' || hash === 'fixed' || hash === 'shared' || hash === 'home' || hash === 'plan') {
       setScreen(hash)
     }
     const onHashChange = () => {
       const h = window.location.hash.replace('#/', '')
-      if (h === 'input' || h === 'fixed' || h === 'shared' || h === 'history' || h === 'home') {
+      if (h === 'input' || h === 'fixed' || h === 'shared' || h === 'home' || h === 'plan') {
         setScreen(h)
       }
     }
@@ -748,7 +737,6 @@ function App() {
                   onQuickTransfer={handleQuickTransfer}
                   onDeleteItem={handleDeleteItem}
                   onGoShared={() => setScreen('shared')}
-                  onGoHistory={() => setScreen('history')}
                 />
               )}
 
@@ -775,15 +763,6 @@ function App() {
                 />
               )}
 
-              {screen === 'history' && (
-                <HistoryScreen
-                  items={items}
-                  busy={busy}
-                  typeLabel={typeLabel}
-                  isRecurrentItem={isRecurrentItem}
-                  onDeleteItem={handleDeleteItem}
-                />
-              )}
             </Suspense>
           </main>
 
