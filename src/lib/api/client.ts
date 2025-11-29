@@ -3,6 +3,8 @@ import type {
   BalanceHistoryItem,
   ListResponse,
   OverviewResponse,
+  ProfileImageGetResult,
+  ProfileImageUploadResult,
   Recurrent,
   Settings,
   Transfer,
@@ -180,12 +182,33 @@ export const api = {
   getSettings(token: string) {
     return callApi<Settings>({ mode: 'settings_get', token }, 'GET')
   },
-  setSettings(token: string, params: { husband_name: string; wife_name: string }) {
+  setSettings(token: string, params: { husband_name: string; wife_name: string; husband_image_id?: string; wife_image_id?: string }) {
     return callApi<Settings>({
       mode: 'settings_set',
       token,
       husband_name: params.husband_name,
       wife_name: params.wife_name,
+      husband_image_id: params.husband_image_id || '',
+      wife_image_id: params.wife_image_id || '',
     })
+  },
+  profileImageUpload(params: { token: string; member_id: 'husband' | 'wife'; data_url: string; prev_file_id?: string }) {
+    return callApi<ProfileImageUploadResult>({
+      mode: 'profile_image_upload',
+      token: params.token,
+      member_id: params.member_id,
+      data_url: params.data_url,
+      prev_file_id: params.prev_file_id || '',
+    })
+  },
+  profileImageGet(params: { token: string; file_id: string }) {
+    return callApi<ProfileImageGetResult>(
+      {
+        mode: 'profile_image_get',
+        token: params.token,
+        file_id: params.file_id,
+      },
+      'GET',
+    )
   },
 }

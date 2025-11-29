@@ -90,7 +90,13 @@ function App() {
   const [sharedSpending, setSharedSpending] = useState(0)
   const [sharedBalance, setSharedBalance] = useState(0)
   const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryItem[]>([])
-  const [settingsForm, setSettingsForm] = useState({ husband_name: '', wife_name: '' })
+  const [settingsForm, setSettingsForm] = useState({
+    husband_name: '',
+    wife_name: '',
+    husband_image_id: '',
+    wife_image_id: '',
+  })
+  const [profilePreview, setProfilePreview] = useState({ husband: '', wife: '' })
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [editingRecurrent, setEditingRecurrent] = useState<Recurrent | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -271,7 +277,8 @@ function App() {
     setBalanceHistory([])
     setSummary(initialSummary)
     setMembers(defaultMembers)
-    setSettingsForm({ husband_name: '', wife_name: '' })
+    setSettingsForm({ husband_name: '', wife_name: '', husband_image_id: '', wife_image_id: '' })
+    setProfilePreview({ husband: '', wife: '' })
   }
 
   async function loadSettings() {
@@ -297,7 +304,19 @@ function App() {
     if (!nextMembers.find((m) => m.id === memberId)) {
       setMemberId(nextMembers[0]?.id || '')
     }
-    setSettingsForm({ husband_name: nextMembers[0].label, wife_name: nextMembers[1].label })
+    setSettingsForm({
+      husband_name: nextMembers[0].label,
+      wife_name: nextMembers[1].label,
+      husband_image_id: data.husband_image_id || '',
+      wife_image_id: data.wife_image_id || '',
+    })
+    setProfilePreview((p) => ({
+      ...p,
+      husband: '',
+      wife: '',
+    }))
+    if (data.husband_image_id) fetchProfileImage(data.husband_image_id, 'husband')
+    if (data.wife_image_id) fetchProfileImage(data.wife_image_id, 'wife')
   }
 
   async function loadOverview() {
@@ -364,6 +383,18 @@ function App() {
       }
     } catch {
       // 非致命的
+    }
+  }
+
+  async function fetchProfileImage(fileId: string, member: 'husband' | 'wife') {
+    if (!token || !fileId) return
+    try {
+      const result = await api.profileImageGet({ token, file_id: fileId })
+      if (result.status === 'ok' && result.data?.data_url) {
+        setProfilePreview((p) => ({ ...p, [member]: result.data?.data_url || '' }))
+      }
+    } catch {
+      // 取得失敗は無視（画像なし扱い）
     }
   }
 
@@ -544,6 +575,67 @@ function App() {
         showSuccess('共通口座の支出を更新しました')
       } else {
         showError(result.message || '支出登録に失敗しました')
+      }
+    })
+  }
+
+  function resizeImageToMax512(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        const img = new Image()
+        img.onload = () => {
+          const max = 512
+          let { width, height } = img
+          if (width <= max && height <= max) return resolve(dataUrl)
+          const scale = Math.min(max / width, max / height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return resolve(dataUrl)
+          ctx.drawImage(img, 0, 0, width, height)
+          const output = canvas.toDataURL(file.type || 'image/png')
+          resolve(output)
+        }
+        img.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+        img.src = dataUrl
+      }
+      reader.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleSelectImage(member: 'husband' | 'wife', file: File | null) {
+    if (!file) return
+    if (!token) return showError('未ログインです')
+    if (!file.type.startsWith('image/')) return showError('画像ファイルを選択してください')
+    await withBusy(async () => {
+      try {
+        const dataUrl = await resizeImageToMax512(file)
+        const prev = member === 'husband' ? settingsForm.husband_image_id : settingsForm.wife_image_id
+        const result = await api.profileImageUpload({
+          token,
+          member_id: member,
+          data_url: dataUrl,
+          prev_file_id: prev,
+        })
+        if (result.status === 'ok' && result.data) {
+          setSettingsForm((p) => ({
+            ...p,
+            husband_image_id: member === 'husband' ? result.data!.file_id : p.husband_image_id,
+            wife_image_id: member === 'wife' ? result.data!.file_id : p.wife_image_id,
+          }))
+          setProfilePreview((p) => ({ ...p, [member]: dataUrl }))
+          showSuccess('画像をアップロードしました')
+        } else {
+          showError(result.message || '画像のアップロードに失敗しました')
+        }
+      } catch (err) {
+        showError('画像の処理に失敗しました')
       }
     })
   }
@@ -772,8 +864,12 @@ function App() {
             onClose={() => setSettingsModalOpen(false)}
             husband={settingsForm.husband_name}
             wife={settingsForm.wife_name}
+            husbandImagePreview={profilePreview.husband}
+            wifeImagePreview={profilePreview.wife}
             setHusband={(v) => setSettingsForm((p) => ({ ...p, husband_name: v }))}
             setWife={(v) => setSettingsForm((p) => ({ ...p, wife_name: v }))}
+            onSelectHusbandImage={(file) => handleSelectImage('husband', file)}
+            onSelectWifeImage={(file) => handleSelectImage('wife', file)}
             onSubmit={handleSaveSettings}
             busy={busy}
           />

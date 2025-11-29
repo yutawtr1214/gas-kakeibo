@@ -57,6 +57,8 @@ function buildError(message) {
 }
 
 function respond(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+  // Apps Script の TextOutput では setHeader は利用できない。
+  // CORS ヘッダーを付与しようとして runtime エラーが出ると全 API が失敗するため、
+  // 元のシンプルなレスポンスに戻す。
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }

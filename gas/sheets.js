@@ -114,7 +114,7 @@ function normalizeSharedSpendingIndex(header) {
 }
 
 function normalizeSettingsIndex(header) {
-  const expected = ['husband_name', 'wife_name', 'updated_at'];
+  const expected = ['husband_name', 'wife_name', 'husband_image_id', 'wife_image_id', 'updated_at'];
   const map = {};
   header.forEach((name, i) => {
     const key = (name || '').toString().trim().toLowerCase();

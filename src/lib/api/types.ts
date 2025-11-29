@@ -54,7 +54,18 @@ export type BalanceHistoryItem = {
 export type Settings = {
   husband_name: string
   wife_name: string
+  husband_image_id?: string
+  wife_image_id?: string
   updated_at: string
+}
+
+export type ProfileImageUploadResult = {
+  file_id: string
+  updated_at: string
+}
+
+export type ProfileImageGetResult = {
+  data_url: string
 }
 
 export type OverviewResponse = ListResponse & {

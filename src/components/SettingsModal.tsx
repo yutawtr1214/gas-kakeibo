@@ -4,14 +4,31 @@ type Props = {
   open: boolean
   husband: string
   wife: string
+  husbandImagePreview?: string
+  wifeImagePreview?: string
   setHusband: (v: string) => void
   setWife: (v: string) => void
+  onSelectHusbandImage: (file: File | null) => void
+  onSelectWifeImage: (file: File | null) => void
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
   busy: boolean
 }
 
-export function SettingsModal({ open, husband, wife, setHusband, setWife, onSubmit, onClose, busy }: Props) {
+export function SettingsModal({
+  open,
+  husband,
+  wife,
+  husbandImagePreview,
+  wifeImagePreview,
+  setHusband,
+  setWife,
+  onSelectHusbandImage,
+  onSelectWifeImage,
+  onSubmit,
+  onClose,
+  busy,
+}: Props) {
   if (!open) return null
   return (
     <div style={backdropStyle}>
@@ -34,6 +51,26 @@ export function SettingsModal({ open, husband, wife, setHusband, setWife, onSubm
             />
           </label>
           <label>
+            夫のプロフィール画像（最大512px / 500KB）
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => onSelectHusbandImage(e.target.files?.[0] || null)}
+              disabled={busy}
+            />
+            {husbandImagePreview ? (
+              <img
+                src={husbandImagePreview}
+                alt="夫の画像プレビュー"
+                style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '50%', marginTop: 8 }}
+              />
+            ) : (
+              <p className="muted" style={{ marginTop: 4 }}>
+                まだ画像がありません
+              </p>
+            )}
+          </label>
+          <label>
             妻の名前（5文字以内）
             <input
               type="text"
@@ -42,6 +79,26 @@ export function SettingsModal({ open, husband, wife, setHusband, setWife, onSubm
               onChange={(e) => setWife(e.target.value)}
               placeholder="例: 花子"
             />
+          </label>
+          <label>
+            妻のプロフィール画像（最大512px / 500KB）
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => onSelectWifeImage(e.target.files?.[0] || null)}
+              disabled={busy}
+            />
+            {wifeImagePreview ? (
+              <img
+                src={wifeImagePreview}
+                alt="妻の画像プレビュー"
+                style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '50%', marginTop: 8 }}
+              />
+            ) : (
+              <p className="muted" style={{ marginTop: 4 }}>
+                まだ画像がありません
+              </p>
+            )}
           </label>
           <div className="actions">
             <button type="submit" className="primary" disabled={busy}>

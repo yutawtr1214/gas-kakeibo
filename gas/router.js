@@ -8,6 +8,7 @@ function doGet(e) {
   if (params.mode === 'spending_history') return handleSpendingHistory(params); // 互換のため残すが balance_history を推奨
   if (params.mode === 'balance_history') return handleBalanceHistory(params);
   if (params.mode === 'settings_get') return handleSettingsGet(params);
+  if (params.mode === 'profile_image_get') return handleProfileImageGet(params);
   return buildError('invalid_mode');
 }
 
@@ -42,6 +43,8 @@ function doPost(e) {
       return handleBalanceHistory(params);
     case 'settings_set':
       return withLock(() => handleSettingsSet(params));
+    case 'profile_image_upload':
+      return withLock(() => handleProfileImageUpload(params));
     default:
       return buildError('invalid_mode');
   }
