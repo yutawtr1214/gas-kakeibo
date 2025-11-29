@@ -2,6 +2,7 @@ import type { Item, ItemType, Summary, TransfersResult } from '../lib/api/types'
 import { Card } from '../components/Card'
 import { SummaryRow } from '../components/SummaryRow'
 import { FilterBar } from '../components/FilterBar'
+import { TrashIcon } from '../components/icons'
 
 type Member = { id: string; label: string }
 
@@ -98,32 +99,39 @@ export function PlanScreen({
         <div className="list">
               {items.length === 0 && <p className="muted">当月のデータがありません</p>}
               {items.map((item) => (
-                <div key={item.id} className="list-item">
-                  <div>
-                    <p className="label">
-                      {isRecurrentItem(item) && <span className="chip chip-small muted">固定費</span>}
-                      <span className="label-title">
-                        {item.date || '-'} / {typeLabel(item.item_type)}
-                      </span>
-                    </p>
-                    <p className="muted">{item.note || '-'}</p>
+                <div key={item.id}>
+                  <div className="list-item list-item--with-actions">
+                    <div>
+                      <p className="label">
+                        {isRecurrentItem(item) && <span className="chip chip-small muted">固定費</span>}
+                        <span className="label-title">
+                          {item.date || '-'} / {typeLabel(item.item_type)}
+                        </span>
+                      </p>
+                      <p className="muted">{item.note || '-'}</p>
+                    </div>
+                    <div className="list-actions list-actions--split">
+                      <span className="amount">{item.amount.toLocaleString()}円</span>
+                      {!isRecurrentItem(item) ? (
+                        <div className="action-row action-row--right">
+                          <button className="action-btn delete" type="button" onClick={() => onDeleteItem(item.id)} disabled={busy}>
+                            <TrashIcon width={18} height={18} />
+                            <span>削除</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="action-row action-row--right">
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            固定費は固定費タブで編集
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="list-actions">
-                    <span className="amount">{item.amount.toLocaleString()}円</span>
-                    {!isRecurrentItem(item) ? (
-                  <button className="ghost danger-text" onClick={() => onDeleteItem(item.id)} disabled={busy}>
-                    削除
-                  </button>
-                ) : (
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    固定費は固定費タブで編集
-                  </span>
-                )}
-              </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <button className="ghost small" onClick={onGoHistory}>
+            <button className="ghost small" onClick={onGoHistory}>
           履歴をすべて見る
         </button>
       </Card>

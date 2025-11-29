@@ -39,7 +39,6 @@ p {
   padding: 14px 16px;
   background: #ffffff;
   border-bottom: 1px solid #e6ecf0;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
 .eyebrow {
@@ -102,7 +101,7 @@ p {
   background: #ffffff;
   border: 1px solid #e1e8ed;
   border-radius: 14px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   min-width: 160px;
   overflow: hidden;
   animation: fade-slide 140ms ease;
@@ -149,7 +148,6 @@ p {
   padding: 20px 18px;
   max-width: 420px;
   margin: 40px auto;
-  box-shadow: 0 6px 18px rgba(15, 20, 25, 0.08);
 }
 
 .chip-group {
@@ -190,21 +188,27 @@ p {
 .card {
   background: #ffffff;
   border: 1px solid #e6ecf0;
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 6px 18px rgba(15, 20, 25, 0.08);
+}
+
+.stack > .card + .card,
+.content > .card + .card {
+  margin-top: 0;
+  border-top: 1px solid #e6ecf0;
 }
 
 .card-highlight {
   border-color: #1d9bf0;
-  box-shadow: 0 8px 22px rgba(29, 161, 242, 0.18);
 }
 
 .card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 10px;
   margin-bottom: 10px;
+  border-bottom: 1px solid #e6ecf0;
 }
 
 .muted {
@@ -256,7 +260,7 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: #1da1f2;
-  box-shadow: 0 0 0 3px rgba(29, 161, 242, 0.2);
+  box-shadow: 0 0 0 2px rgba(29, 161, 242, 0.15);
 }
 
 button {
@@ -265,7 +269,7 @@ button {
   padding: 11px 14px;
   font-size: 14px;
   cursor: pointer;
-  transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease;
+  transition: transform 0.08s ease, background 0.12s ease;
 }
 
 button:active {
@@ -276,7 +280,6 @@ button.primary {
   background: linear-gradient(135deg, #1da1f2, #0d8ddf);
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 12px 26px rgba(29, 161, 242, 0.28);
 }
 
 button.ghost {
@@ -298,7 +301,6 @@ button.ghost.danger-text {
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .actions {
@@ -381,7 +383,11 @@ button:disabled {
 .list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
+}
+
+.list > div + div {
+  border-top: 1px solid #e6ecf0;
 }
 
 .list-item {
@@ -389,9 +395,18 @@ button:disabled {
   justify-content: space-between;
   gap: 10px;
   padding: 12px;
-  border: 1px solid #e6ecf0;
-  border-radius: 12px;
-  background: #ffffff;
+  border-bottom: 1px solid #e6ecf0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.list-item--with-actions {
+  padding-bottom: 8px;
+  align-items: stretch;
+}
+
+.list-item:last-child {
+  border-bottom: none;
 }
 
 .label {
@@ -417,6 +432,16 @@ button:disabled {
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
+  min-width: 140px;
+}
+
+.list-actions--split {
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 140px;
+  padding-left: 8px;
 }
 
 .amount {
@@ -433,6 +458,54 @@ button:disabled {
   padding: 4px 8px;
   border-radius: 10px;
   border-width: 1px;
+}
+
+.action-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.action-row--right {
+  margin-left: auto;
+}
+
+.card-action-row {
+  padding: 8px 0 12px;
+  border-bottom: 1px solid #e6ecf0;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #536471;
+  padding: 6px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn.edit:hover {
+  background: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+}
+
+.action-btn.delete:hover {
+  background: rgba(249, 24, 128, 0.1);
+  color: #f91880;
+}
+
+.action-btn:active {
+  transform: translateY(1px);
 }
 
 .toast {
@@ -475,7 +548,7 @@ button:disabled {
   border: 1px solid #e6ecf0;
   border-radius: 16px;
   padding: 18px;
-  box-shadow: 0 18px 42px rgba(15, 20, 25, 0.18);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .modal.success {

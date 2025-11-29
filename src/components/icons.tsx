@@ -79,3 +79,14 @@ export function BirdIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function TrashIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...baseProps} {...props}>
+      <path d="M6.5 8.5h11" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 5.5h6l-.4-1.4a1 1 0 0 0-.96-.7h-3.3a1 1 0 0 0-.96.7L9 5.5Z" />
+      <path d="M7.5 8.5 8 19a1.5 1.5 0 0 0 1.5 1.4h5A1.5 1.5 0 0 0 16 19l.5-10.5" />
+    </svg>
+  )
+}
