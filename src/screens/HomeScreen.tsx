@@ -50,7 +50,7 @@ export function HomeScreen({
         )}
       </Card>
 
-      <Card title="収支の推移" subtitle="直近6ヶ月">
+      <Card title="収支の推移">
         <MiniBalanceChart data={balanceHistory} />
       </Card>
     </section>

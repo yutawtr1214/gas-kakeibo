@@ -1,3 +1,6 @@
+import type React from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { BalanceHistoryItem } from '../lib/api/types'
 
 type ChartProps = {
@@ -5,106 +8,127 @@ type ChartProps = {
   limit?: number
 }
 
+const toTenThousand = (value: number) => `${Math.round(value / 10000)}万`
+
 export function BalanceChart({ data, limit }: ChartProps) {
-  const list = limit ? data.slice(-limit) : data
+  const list = data
   if (!list || list.length === 0) {
     return <div className="muted">まだ収支データがありません</div>
   }
 
-  const points = list.map((d) => ({
-    label: `${d.year}/${String(d.month).padStart(2, '0')}`,
-    income: d.transfers, // 収入=振込額
-    spending: d.spending,
-    balance: d.balance,
-  }))
+  const points = useMemo(
+    () =>
+      list.map((d, idx) => ({
+        idx,
+        label: `${d.year}/${String(d.month).padStart(2, '0')}`,
+        income: Math.max(d.transfers, 0), // 正方向のみ
+        spending: -Math.abs(d.spending || 0), // 常にマイナス方向に配置（未定義対策）
+        balance: d.balance,
+      })),
+    [list],
+  )
 
-  const maxAbs = Math.max(
+  const valueAbsMax = Math.max(
     ...points.map((p) => Math.max(Math.abs(p.income), Math.abs(p.spending), Math.abs(p.balance))),
     1,
   )
-  const padding = 16
-  const width = 360
-  const height = 220
-  const baseline = height / 2
-  const step = points.length > 1 ? (width - padding * 2) / points.length : width - padding * 2
-  const barWidth = Math.min(32, step * 0.5)
+  const tickStep = 100000 // 10万円刻み
+  const tickMax = Math.ceil(valueAbsMax / tickStep) * tickStep
+  const ticks: number[] = []
+  for (let v = -tickMax; v <= tickMax; v += tickStep) {
+    ticks.push(v)
+  }
 
-  const yScale = (value: number) => baseline - (value / maxAbs) * (height / 2 - padding)
-  const zeroY = yScale(0)
+  const currencyFormatter = new Intl.NumberFormat('ja-JP')
 
-  const linePoints = points
-    .map((p, i) => {
-      const x = padding + step * i + barWidth / 2
-      const y = yScale(p.balance)
-      return `${x},${y}`
-    })
-    .join(' ')
+  const viewCount = limit ?? 12
+  const maxStart = Math.max(points.length - viewCount, 0)
+  const [startIndex, setStartIndex] = useState(maxStart)
+  const clampStart = (next: number) => Math.max(0, Math.min(maxStart, next))
+  const touchStartX = useRef<number | null>(null)
+
+  const moveWindow = (delta: number) => {
+    setStartIndex((prev) => clampStart(prev + delta))
+  }
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (Math.abs(e.deltaX) < 4) return
+    moveWindow(e.deltaX > 0 ? 1 : -1)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartX.current == null) return
+    const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current
+    const threshold = 24
+    if (Math.abs(dx) >= threshold) {
+      moveWindow(dx < 0 ? 1 : -1)
+    }
+    touchStartX.current = null
+  }
+
+  const endIndex = startIndex + viewCount - 1
+  const ticksX = points.slice(startIndex, startIndex + viewCount).map((p) => p.idx)
+  const labelFromIndex = (index: number | string) => {
+    const i = typeof index === 'number' ? index : Number(index)
+    return points[i]?.label ?? ''
+  }
 
   return (
-    <div className="chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="共通口座収支の推移">
-        <line x1="0" x2={width} y1={zeroY} y2={zeroY} stroke="#cbd5e1" strokeDasharray="4 4" />
-        {points.map((p, i) => {
-          const x = padding + step * i
-          const incomeHeight = Math.abs(yScale(p.income) - yScale(0))
-          const spendingHeight = Math.abs(yScale(-p.spending) - yScale(0))
-          return (
-            <g key={p.label}>
-              <rect
-                x={x}
-                y={p.income >= 0 ? yScale(p.income) : yScale(0)}
-                width={barWidth}
-                height={incomeHeight}
-                fill="#22c55e"
-                rx={4}
-              />
-              <rect
-                x={x + barWidth + 6}
-                y={yScale(0)}
-                width={barWidth}
-                height={spendingHeight}
-                fill="#ef4444"
-                rx={4}
-              />
-              <text x={x + barWidth} y={height - 6} textAnchor="middle" fontSize="10" fill="#64748b">
-                {p.label}
-              </text>
-            </g>
-          )
-        })}
-        <polyline fill="none" stroke="#2563eb" strokeWidth="3" points={linePoints} />
-        {points.map((p, i) => {
-          const x = padding + step * i + barWidth / 2
-          const y = yScale(p.balance)
-          return <circle key={`${p.label}-point`} cx={x} cy={y} r="4" fill="#2563eb" />
-        })}
-      </svg>
-      <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#475569', marginTop: 8 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 12, height: 6, background: '#22c55e', display: 'inline-block' }} />
-          収入（振込）
-        </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 12, height: 6, background: '#ef4444', display: 'inline-block' }} />
-          支出
-        </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span
-            style={{
-              width: 12,
-              height: 6,
-              background: '#2563eb',
-              display: 'inline-block',
-              borderRadius: 999,
-            }}
+    <div className="chart" onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <ResponsiveContainer width="100%" height={280}>
+        <ComposedChart
+          data={points}
+          margin={{ top: 16, right: 16, bottom: 24, left: 12 }}
+          barCategoryGap="10%"
+        >
+          <CartesianGrid stroke="#e2e8f0" vertical={false} />
+          <XAxis
+            dataKey="idx"
+            type="number"
+            tick={{ fontSize: 11, fill: '#475569' }}
+            height={28}
+            domain={[startIndex, endIndex]}
+            ticks={ticksX}
+            allowDataOverflow
+            tickFormatter={(v) => points[v]?.label ?? ''}
           />
-          収支
-        </span>
-      </div>
+          <YAxis
+            ticks={ticks}
+            tickFormatter={toTenThousand}
+            tick={{ fontSize: 11, fill: '#475569' }}
+            width={44}
+            domain={[-tickMax, tickMax]}
+          />
+          <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
+          <Tooltip
+            formatter={(value: number, name) => {
+              const labelMap: Record<string, string> = { income: '収入（振込）', spending: '支出', balance: '収支' }
+              const displayValue = name === 'spending' ? Math.abs(value) : value
+              return [`${currencyFormatter.format(displayValue)}円`, labelMap[name as keyof typeof labelMap] || name]
+            }}
+            labelFormatter={(label) => `${labelFromIndex(label)} の収支`}
+            labelStyle={{ color: '#0f172a', fontWeight: 600 }}
+            itemStyle={{ color: '#0f172a' }}
+          />
+          <Legend
+            verticalAlign="top"
+            height={28}
+            formatter={(value) => (value === 'spending' ? '支出' : value === 'income' ? '収入（振込）' : '収支')}
+          />
+          <Bar dataKey="income" fill="#22c55e" barSize={18} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="spending" fill="#ef4444" barSize={18} radius={[0, 0, 4, 4]} />
+          <Line type="monotone" dataKey="balance" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   )
 }
 
 export function MiniBalanceChart({ data }: { data: BalanceHistoryItem[] }) {
-  return <BalanceChart data={data} limit={6} />
+  // ホームでも共有と同じ動き（12ヶ月ビューをスワイプ）にするため limit 未指定
+  return <BalanceChart data={data} />
 }

@@ -451,7 +451,7 @@ button:disabled {
 }
 
 .chart {
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .alert.error {
