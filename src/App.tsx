@@ -579,6 +579,29 @@ function App() {
     })
   }
 
+  async function handleDeleteSharedSpending() {
+    if (!token) return showError('未ログインです')
+    if (!window.confirm('当月の支出記録を削除しますか？')) return
+    await withBusy(async () => {
+      const result = await api.setSharedSpending({
+        token,
+        year,
+        month,
+        amount: 0,
+        note: '',
+      })
+      if (result.status === 'ok' && result.data) {
+        setSharedSpending(result.data.amount || 0)
+        setSharedForm({ amount: '', note: '' })
+        await loadOverview()
+        await loadBalanceHistory()
+        showSuccess('当月の支出を削除しました')
+      } else {
+        showError(result.message || '削除に失敗しました')
+      }
+    })
+  }
+
   function resizeImageToMax512(file: File) {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
@@ -855,6 +878,7 @@ function App() {
                   onReload={loadOverview}
                   onSubmitShared={handleSharedSpending}
                   onDeleteTransfer={handleDeleteTransfer}
+                  onDeleteShared={handleDeleteSharedSpending}
                 />
               )}
 

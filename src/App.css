@@ -487,7 +487,6 @@ button:disabled {
 
 /* Tweet-like card */
 .tweet-card {
-  border: 1px solid #e6ecf0;
   border-radius: 12px;
   padding: 16px;
   display: flex;

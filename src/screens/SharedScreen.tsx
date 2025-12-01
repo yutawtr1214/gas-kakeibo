@@ -29,6 +29,7 @@ type Props = {
   onReload: () => void
   onSubmitShared: (e: React.FormEvent) => void
   onDeleteTransfer: (id: string) => void
+  onDeleteShared: () => void
 }
 
 export function SharedScreen({
@@ -50,6 +51,7 @@ export function SharedScreen({
   onReload,
   onSubmitShared,
   onDeleteTransfer,
+  onDeleteShared,
 }: Props) {
   return (
     <div className="stack">
@@ -99,6 +101,9 @@ export function SharedScreen({
             </button>
             <button type="button" className="ghost" onClick={() => setSharedForm({ amount: '', note: '' })} disabled={busy}>
               リセット
+            </button>
+            <button type="button" className="ghost danger-text" onClick={onDeleteShared} disabled={busy}>
+              支出を削除
             </button>
           </div>
         </form>

@@ -67,6 +67,22 @@ export function FixedScreen({
     end_y: editing?.end_y ? String(editing.end_y) : '',
     end_m: editing?.end_m ? String(editing.end_m) : '',
   })
+  const [showPast, setShowPast] = React.useState(false)
+  const nowYm = React.useMemo(() => {
+    const d = new Date()
+    return d.getFullYear() * 12 + (d.getMonth() + 1)
+  }, [])
+
+  const visibleRecurrents = React.useMemo(() => {
+    if (showPast) return recurrents
+    return recurrents.filter((r) => {
+      if (r.end_y && r.end_m) {
+        const endYm = r.end_y * 12 + r.end_m
+        return endYm >= nowYm
+      }
+      return true
+    })
+  }, [recurrents, showPast, nowYm])
 
   // メンバー選択を入力タブと同様のチップで統一し、登録者に反映
   React.useEffect(() => {
@@ -213,9 +229,22 @@ export function FixedScreen({
       </Card>
 
       <Card title="固定費一覧" subtitle="期間の編集が可能です">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <button
+            type="button"
+            className="ghost"
+            style={{ padding: '6px 10px', fontSize: '13px' }}
+            onClick={() => setShowPast((v) => !v)}
+            disabled={busy}
+          >
+            {showPast ? '最近の固定費だけ見る' : '過去の固定費も表示'}
+          </button>
+        </div>
         <div className="list">
-          {recurrents.length === 0 && <p className="muted">登録された固定費はありません</p>}
-          {recurrents.map((r) => (
+          {visibleRecurrents.length === 0 && (
+            <p className="muted">{showPast ? '固定費は登録されていません' : '現在以降の固定費はありません'}</p>
+          )}
+          {visibleRecurrents.map((r) => (
             <div key={r.id}>
               <TweetCard
                 members={members}
