@@ -1,6 +1,6 @@
-import type React from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import type { CategoricalChartFunc } from 'recharts/types/chart/types'
 import type { BalanceHistoryItem } from '../lib/api/types'
 
 type ChartProps = {
@@ -11,27 +11,22 @@ type ChartProps = {
 const toTenThousand = (value: number) => `${Math.round(value / 10000)}万`
 
 export function BalanceChart({ data, limit }: ChartProps) {
-  const list = data
-  if (!list || list.length === 0) {
-    return <div className="muted">まだ収支データがありません</div>
-  }
-
   const points = useMemo(
     () =>
-      list.map((d, idx) => ({
+      data.map((d, idx) => ({
         idx,
         label: `${d.year}/${String(d.month).padStart(2, '0')}`,
         income: Math.max(d.transfers, 0), // 正方向のみ
         spending: -Math.abs(d.spending || 0), // 常にマイナス方向に配置（未定義対策）
         balance: d.balance,
       })),
-    [list],
+    [data],
   )
+  const hasPoints = points.length > 0
 
-  const valueAbsMax = Math.max(
-    ...points.map((p) => Math.max(Math.abs(p.income), Math.abs(p.spending), Math.abs(p.balance))),
-    1,
-  )
+  const valueAbsMax = hasPoints
+    ? Math.max(...points.map((p) => Math.max(Math.abs(p.income), Math.abs(p.spending), Math.abs(p.balance))))
+    : 1
   const tickStep = 100000 // 10万円刻み
   const tickMax = Math.ceil(valueAbsMax / tickStep) * tickStep
   const ticks: number[] = []
@@ -46,6 +41,20 @@ export function BalanceChart({ data, limit }: ChartProps) {
   const [startIndex, setStartIndex] = useState(maxStart)
   const clampStart = (next: number) => Math.max(0, Math.min(maxStart, next))
   const touchStartX = useRef<number | null>(null)
+  const hideTimerRef = useRef<number | null>(null)
+  const [tooltipVisible, setTooltipVisible] = useState(false)
+
+  const clearHideTimer = () => {
+    if (hideTimerRef.current) {
+      window.clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }
+
+  const scheduleHide = () => {
+    clearHideTimer()
+    hideTimerRef.current = window.setTimeout(() => setTooltipVisible(false), 1500)
+  }
 
   const moveWindow = (delta: number) => {
     setStartIndex((prev) => clampStart(prev + delta))
@@ -77,6 +86,29 @@ export function BalanceChart({ data, limit }: ChartProps) {
     return points[i]?.label ?? ''
   }
 
+  const handleTooltipChange: CategoricalChartFunc = (state) => {
+    const idx = state?.activeTooltipIndex
+    if (idx === undefined || idx === null) {
+      setTooltipVisible(false)
+      clearHideTimer()
+      return
+    }
+    setTooltipVisible(true)
+    scheduleHide()
+  }
+
+  const handleMouseLeave = () => {
+    setTooltipVisible(false)
+    clearHideTimer()
+  }
+
+  // アンマウント時にタイマーを片付ける
+  useEffect(() => () => clearHideTimer(), [])
+
+  if (!hasPoints) {
+    return <div className="muted">まだ収支データがありません</div>
+  }
+
   return (
     <div className="chart" onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <ResponsiveContainer width="100%" height={280}>
@@ -84,6 +116,9 @@ export function BalanceChart({ data, limit }: ChartProps) {
           data={points}
           margin={{ top: 16, right: 16, bottom: 24, left: 12 }}
           barCategoryGap="10%"
+          onMouseMove={handleTooltipChange}
+          onClick={handleTooltipChange}
+          onMouseLeave={handleMouseLeave}
         >
           <CartesianGrid stroke="#e2e8f0" vertical={false} />
           <XAxis
@@ -105,6 +140,7 @@ export function BalanceChart({ data, limit }: ChartProps) {
           />
           <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
           <Tooltip
+            active={tooltipVisible}
             formatter={(value: number, name) => {
               const labelMap: Record<string, string> = { income: '収入（振込）', spending: '支出', balance: '収支' }
               const displayValue = name === 'spending' ? Math.abs(value) : value
@@ -113,6 +149,7 @@ export function BalanceChart({ data, limit }: ChartProps) {
             labelFormatter={(label) => `${labelFromIndex(label)} の収支`}
             labelStyle={{ color: '#0f172a', fontWeight: 600 }}
             itemStyle={{ color: '#0f172a' }}
+            isAnimationActive={false}
           />
           <Legend
             verticalAlign="top"

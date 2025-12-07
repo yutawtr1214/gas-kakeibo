@@ -16,14 +16,7 @@ type Props = {
   onGoShared: () => void
 }
 
-export function HomeScreen({
-  summary: _summary,
-  transfersSummary: _transfersSummary,
-  sharedSpending: _sharedSpending,
-  sharedBalance: _sharedBalance,
-  balanceHistory,
-  onGoShared,
-}: Props) {
+export function HomeScreen({ balanceHistory, onGoShared }: Props) {
   const hasHistory = balanceHistory.length > 0
   const totalBalanceDiff = hasHistory
     ? balanceHistory.reduce((sum, h) => sum + (h.transfers - h.spending), 0)

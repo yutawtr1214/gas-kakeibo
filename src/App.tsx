@@ -256,7 +256,7 @@ function App() {
       } else {
         setLoginError(result.message || 'ログインに失敗しました')
       }
-    } catch (err) {
+    } catch {
       setLoginError('通信に失敗しました')
     } finally {
       setLoading(false)
@@ -349,7 +349,7 @@ function App() {
       } else {
         showError(result.message || 'データ取得に失敗しました')
       }
-    } catch (err) {
+    } catch {
       showError('通信に失敗しました')
     } finally {
       setLoading(false)
@@ -660,7 +660,7 @@ function App() {
         } else {
           showError(result.message || '画像のアップロードに失敗しました')
         }
-      } catch (err) {
+      } catch {
         showError('画像の処理に失敗しました')
       }
     })
