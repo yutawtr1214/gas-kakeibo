@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { CategoricalChartFunc } from 'recharts/types/chart/types'
+import type { TooltipContentProps } from 'recharts'
 import type { BalanceHistoryItem } from '../lib/api/types'
 
 type ChartProps = {
@@ -9,6 +9,47 @@ type ChartProps = {
 }
 
 const toTenThousand = (value: number) => `${Math.round(value / 10000)}万`
+
+type BalanceTooltipProps = TooltipContentProps<number, string> & {
+  labelFromIndex: (v: number | string) => string
+  currencyFormatter: Intl.NumberFormat
+}
+
+function BalanceTooltip({ label, payload, labelFromIndex, currencyFormatter }: BalanceTooltipProps) {
+  if (!payload || payload.length === 0) return null
+
+  const valueMap = Object.fromEntries(payload.map((p: any) => [p.dataKey as string, Number(p.value)]))
+  const rows: { key: 'income' | 'spending' | 'balance'; label: string; color: string; bg: string }[] = [
+    { key: 'income', label: '収入（振込）', color: '#166534', bg: '#dcfce7' },
+    { key: 'spending', label: '支出', color: '#b91c1c', bg: '#fee2e2' },
+    { key: 'balance', label: '収支', color: '#075985', bg: '#e0f2fe' },
+  ]
+
+  const monthLabel = labelFromIndex(label ?? '')
+
+  return (
+    <div className="chart-tooltip">
+      <div className="chart-tooltip__header">{monthLabel || '—'}</div>
+      <div className="chart-tooltip__rows">
+        {rows.map((row) => {
+          const rawValue = valueMap[row.key]
+          const display =
+            rawValue === undefined ? '—' : `${currencyFormatter.format(row.key === 'spending' ? Math.abs(rawValue) : rawValue)}円`
+          return (
+            <div className="chart-tooltip__row" key={row.key}>
+              <span className="chart-tooltip__label">
+                <span className="chart-tooltip__pill" style={{ color: row.color, background: row.bg }}>
+                  {row.label}
+                </span>
+              </span>
+              <span className="chart-tooltip__value">{display}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export function BalanceChart({ data, limit }: ChartProps) {
   const points = useMemo(
@@ -44,18 +85,6 @@ export function BalanceChart({ data, limit }: ChartProps) {
   const hideTimerRef = useRef<number | null>(null)
   const [tooltipVisible, setTooltipVisible] = useState(false)
 
-  const clearHideTimer = () => {
-    if (hideTimerRef.current) {
-      window.clearTimeout(hideTimerRef.current)
-      hideTimerRef.current = null
-    }
-  }
-
-  const scheduleHide = () => {
-    clearHideTimer()
-    hideTimerRef.current = window.setTimeout(() => setTooltipVisible(false), 1500)
-  }
-
   const moveWindow = (delta: number) => {
     setStartIndex((prev) => clampStart(prev + delta))
   }
@@ -86,13 +115,19 @@ export function BalanceChart({ data, limit }: ChartProps) {
     return points[i]?.label ?? ''
   }
 
-  const handleTooltipChange: CategoricalChartFunc = (state) => {
-    const idx = state?.activeTooltipIndex
-    if (idx === undefined || idx === null) {
-      setTooltipVisible(false)
-      clearHideTimer()
-      return
+  const clearHideTimer = () => {
+    if (hideTimerRef.current) {
+      window.clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
     }
+  }
+
+  const scheduleHide = () => {
+    clearHideTimer()
+    hideTimerRef.current = window.setTimeout(() => setTooltipVisible(false), 1500)
+  }
+
+  const handleTooltipChange = () => {
     setTooltipVisible(true)
     scheduleHide()
   }
@@ -102,7 +137,6 @@ export function BalanceChart({ data, limit }: ChartProps) {
     clearHideTimer()
   }
 
-  // アンマウント時にタイマーを片付ける
   useEffect(() => () => clearHideTimer(), [])
 
   if (!hasPoints) {
@@ -139,16 +173,16 @@ export function BalanceChart({ data, limit }: ChartProps) {
             domain={[-tickMax, tickMax]}
           />
           <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
-          <Tooltip
+          <Tooltip<number, string>
+            content={(props) => (
+              <BalanceTooltip
+                {...props}
+                labelFromIndex={labelFromIndex}
+                currencyFormatter={currencyFormatter}
+              />
+            )}
             active={tooltipVisible}
-            formatter={(value: number, name) => {
-              const labelMap: Record<string, string> = { income: '収入（振込）', spending: '支出', balance: '収支' }
-              const displayValue = name === 'spending' ? Math.abs(value) : value
-              return [`${currencyFormatter.format(displayValue)}円`, labelMap[name as keyof typeof labelMap] || name]
-            }}
-            labelFormatter={(label) => `${labelFromIndex(label)} の収支`}
-            labelStyle={{ color: '#0f172a', fontWeight: 600 }}
-            itemStyle={{ color: '#0f172a' }}
+            cursor={{ fill: 'rgba(29, 155, 240, 0.06)' }}
             isAnimationActive={false}
           />
           <Legend

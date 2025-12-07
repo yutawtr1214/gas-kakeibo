@@ -809,6 +809,50 @@ button:disabled {
   overflow: visible;
 }
 
+.chart-tooltip {
+  background: #ffffff;
+  border: 1px solid #e6ecf0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 12px 14px;
+  min-width: 200px;
+  color: #0f1419;
+}
+
+.chart-tooltip__header {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.chart-tooltip__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chart-tooltip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-tooltip__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.chart-tooltip__value {
+  font-weight: 700;
+}
+
 .alert.error {
   color: #ef4444;
 }
